@@ -29,8 +29,8 @@
     align-items: center;
     justify-content: center;
     position: relative;
-    background: rgba(0, 0, 0, 0.75);
-    backdrop-filter: blur(12px);
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.15);
     transition: all 0.3s ease;
   }
@@ -41,11 +41,11 @@
     inset: -2px;
     background: conic-gradient(
       from 0deg,
-      rgba(76, 0, 255, 0.5),     /* Electric Purple */
-      rgba(0, 183, 255, 0.5),    /* Bright Blue */
-      rgba(128, 0, 255, 0.5),    /* Deep Purple */
-      rgba(0, 217, 255, 0.5),    /* Cyan */
-      rgba(76, 0, 255, 0.5)      /* Back to start */
+      rgba(76, 0, 255, 0.8),     /* Brighter Electric Purple */
+      rgba(0, 183, 255, 0.8),    /* Brighter Blue */
+      rgba(255, 0, 255, 0.8),    /* Bright Magenta */
+      rgba(0, 217, 255, 0.8),    /* Brighter Cyan */
+      rgba(76, 0, 255, 0.8)      /* Back to start */
     );
     border-radius: 9999px;
     z-index: -1;
@@ -57,16 +57,16 @@
     content: '';
     position: absolute;
     inset: 1px;
-    background: rgba(0, 0, 0, 0.9);
+    background: rgba(0, 0, 0, 0.85);
     border-radius: 9999px;
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(10px);
   }
   
   .button-content {
     position: relative;
     z-index: 1;
-    width: 20px;
-    height: 20px;
+    width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -95,7 +95,7 @@
   
   .circular-button:hover {
     transform: scale(1.05);
-    box-shadow: 0 0 25px rgba(76, 0, 255, 0.3);
+    box-shadow: 0 0 25px rgba(76, 0, 255, 0.4);
   }
   
   @keyframes rotate {
@@ -130,16 +130,85 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1rem;
+    padding: 0.5rem;
   }
   
   .menu-grid {
-    width: 100%;
-    height: 100%;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 0.75rem;
-    padding: 0.5rem;
+    gap: 1rem;
+    width: 100%;
+    height: 100%;
+    padding: 1rem;
+  }
+  
+  .menu-grid button {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "San Francisco";
+    font-size: 0.75rem;
+    font-weight: 400;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.85rem 0.75rem;
+    position: relative;
+  }
+  
+  .menu-grid button::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 16px;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.2),
+      rgba(255, 255, 255, 0.1) 30%,
+      rgba(255, 255, 255, 0.05)
+    );
+    -webkit-mask: 
+      linear-gradient(#fff 0 0) content-box, 
+      linear-gradient(#fff 0 0);
+    mask: 
+      linear-gradient(#fff 0 0) content-box, 
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+  
+  .menu-grid button .icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    font-weight: 300;
+    height: 24px;
+  }
+  
+  /* Icon colors using devicons */
+  .menu-grid button[data-icon="home"] .icon-wrapper { color: #E0E0E0; }
+  .menu-grid button[data-icon="back"] .icon-wrapper { color: #E0E0E0; }
+  .menu-grid button[data-icon="menu"] .icon-wrapper { color: #E0E0E0; }
+  .menu-grid button[data-icon="siri"] .icon-wrapper {
+    font-size: 1.5rem;
+    background: linear-gradient(135deg, #7B61FF, #00CCB1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 400;
+  }
+  .menu-grid button[data-icon="lock"] .icon-wrapper { color: #FFD700; }
+  .menu-grid button[data-icon="control"] .icon-wrapper { color: #00CCB1; }
+  .menu-grid button[data-icon="volume"] .icon-wrapper { color: #1CA0FB; }
+  .menu-grid button[data-icon="mute"] .icon-wrapper { color: #FF4B4B; }
+  .menu-grid button[data-icon="settings"] .icon-wrapper { color: #00CCB1; }
+  
+  /* Simple active state */
+  .menu-grid button:active {
+    opacity: 0.8;
   }
   
   /* Chat styles */
@@ -163,4 +232,24 @@
   input:focus {
     outline: none;
     box-shadow: none;
+  }
+  
+  /* Keep the circular button hidden when expanded */
+  .circular-button.expanded {
+    opacity: 0;
+  }
+  
+  /* Update icon styles for volume and mute */
+  .menu-grid button[data-icon="volume"] .icon-wrapper,
+  .menu-grid button[data-icon="mute"] .icon-wrapper {
+    font-size: 0.9rem; /* Slightly smaller for triangles */
+    color: #1CA0FB;
+    transform: rotate(90deg); /* Rotate triangles to point left/right */
+  }
+  
+  /* Adjust back button */
+  .menu-grid button[data-icon="back"] .icon-wrapper {
+    font-size: 1.2rem;
+    transform: rotate(270deg); /* Point upward arrow to the left */
+    color: #E0E0E0;
   }

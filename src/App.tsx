@@ -2,7 +2,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { motion, AnimatePresence } from 'framer-motion'
+import { BackgroundGradient } from './ui/background-gradient'
 import './App.css'
+
+const WINDOW_SIZES = {
+  COLLAPSED: { width: 48, height: 48 },
+  EXPANDED: { width: 320, height: 380 }, // Increased to accommodate border and margin
+  CHAT: { width: 300, height: 500 }
+} as const
 
 function App() {
   const [isDragging, setIsDragging] = useState(false)
@@ -81,21 +88,26 @@ function App() {
     // Calculate center position for expanded view
     const screenWidth = window.screen.width
     const screenHeight = window.screen.height
-    const expandedWidth = 280
-    const expandedHeight = 360
-    const expandedX = Math.max(
-      0,
-      Math.min(screenWidth - expandedWidth, windowPos.x - (expandedWidth - 48) / 2)
-    )
-    const expandedY = Math.max(
-      0,
-      Math.min(screenHeight - expandedHeight, windowPos.y - (expandedHeight - 48) / 2)
-    )
+    const expandedWidth = WINDOW_SIZES.EXPANDED.width
+    const expandedHeight = WINDOW_SIZES.EXPANDED.height
 
-    await invoke('set_window_size', { width: expandedWidth, height: expandedHeight })
+    // Calculate new position to center the expanded window
+    const expandedX = Math.max(0, Math.min(
+      screenWidth - expandedWidth,
+      windowPos.x - (expandedWidth - WINDOW_SIZES.COLLAPSED.width) / 2
+    ))
+    const expandedY = Math.max(0, Math.min(
+      screenHeight - expandedHeight,
+      windowPos.y - (expandedHeight - WINDOW_SIZES.COLLAPSED.height) / 2
+    ))
+
+    // Set new size and position
+    await invoke('set_window_size', { 
+      width: expandedWidth,
+      height: expandedHeight 
+    })
     await invoke('move_window', { x: expandedX, y: expandedY })
     setIsExpanded(true)
-    // No more setTimeout here; we use Framer Motion's onAnimationComplete instead.
   }
 
   const handleCollapse = async () => {
@@ -204,7 +216,7 @@ function App() {
                                flex items-center justify-center text-white/90
                                hover:bg-blue-500/30 transition-colors"
                   >
-                    ↑
+                    ��
                   </button>
                 </div>
               </div>
@@ -219,53 +231,37 @@ function App() {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ type: 'spring', duration: 0.3 }}
               className="expanded-menu"
-              onAnimationComplete={() => {
-                transitioningRef.current = false
-              }}
             >
-              <div
-                className="w-full h-full bg-black/80 backdrop-blur-xl
-                           shadow-xl border border-white/5 rounded-3xl
-                           flex items-center justify-center p-3"
+              <BackgroundGradient 
+                className="p-6 min-w-[300px]"
+                containerClassName="p-[3px] rounded-[28px]"
               >
                 <div className="menu-grid">
                   {[
-                    { label: 'Home', icon: '⌂', onClick: () => {} },
-                    { label: 'Back', icon: '←', onClick: handleBack },
-                    { label: 'Menu', icon: '≡', onClick: () => {} },
-                    { label: 'Siri', icon: '◎', onClick: handleSiriClick },
-                    { label: 'Lock', icon: '🔒', onClick: () => {} },
-                    { label: 'Control', icon: '⚙', onClick: () => {} },
-                    { label: 'Volume', icon: '🔊', onClick: () => {} },
-                    { label: 'Mute', icon: '🔇', onClick: () => {} },
-                    { label: 'Settings', icon: '⚙', onClick: () => {} }
-                  ].map(({ label, icon, onClick }, i) => (
-                    <motion.button
+                    { label: 'Home', icon: '⌂', onClick: () => {}, iconType: 'home' },
+                    { label: 'Back', icon: '↑', onClick: handleBack, iconType: 'back' },
+                    { label: 'Menu', icon: '≡', onClick: () => {}, iconType: 'menu' },
+                    { label: 'Siri', icon: '◎', onClick: handleSiriClick, iconType: 'siri' },
+                    { label: 'Lock', icon: '🔒', onClick: () => {}, iconType: 'lock' },
+                    { label: 'Control', icon: '⚙️', onClick: () => {}, iconType: 'control' },
+                    { label: 'Volume', icon: '▲', onClick: () => {}, iconType: 'volume' },
+                    { label: 'Mute', icon: '▼', onClick: () => {}, iconType: 'mute' },
+                    { label: 'Settings', icon: '⚙️', onClick: () => {}, iconType: 'settings' }
+                  ].map(({ label, icon, onClick, iconType }, i) => (
+                    <button
                       key={i}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
                       onClick={onClick}
-                      className="aspect-square rounded-2xl 
-                                 bg-[#1a1a1a] hover:bg-[#2a2a2a]
-                                 text-white/90 text-xs font-medium
-                                 flex flex-col items-center justify-center gap-2
-                                 shadow-lg border border-white/5
-                                 transition-colors duration-150"
+                      data-icon={iconType}
                     >
-                      <div
-                        className="w-8 h-8 rounded-full bg-[#2a2a2a] 
-                                   flex items-center justify-center
-                                   text-lg"
-                      >
+                      <div className="icon-wrapper">
                         {icon}
                       </div>
-                      {label}
-                    </motion.button>
+                      <span>{label}</span>
+                    </button>
                   ))}
                 </div>
-              </div>
+              </BackgroundGradient>
             </motion.div>
           ) : (
             // -----------------
@@ -283,32 +279,7 @@ function App() {
                 transitioningRef.current = false
               }}
             >
-              <div className="button-content">
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <circle
-                    cx="7"
-                    cy="7"
-                    r="6"
-                    stroke="white"
-                    strokeWidth="1.5"
-                    strokeOpacity="0.9"
-                    filter="url(#glow)"
-                  />
-                  <circle cx="7" cy="7" r="2" fill="white" fillOpacity="0.9" />
-                  <defs>
-                    <filter id="glow" x="-8" y="-8" width="30" height="30">
-                      <feGaussianBlur stdDeviation="2" result="blur" />
-                      <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                    </filter>
-                  </defs>
-                </svg>
-              </div>
+              <div className="button-content" />
             </motion.button>
           )}
         </AnimatePresence>
