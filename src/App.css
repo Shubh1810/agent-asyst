@@ -4,10 +4,11 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
+    background: transparent !important;
   }
   
   body {
-    background: transparent;
+    background: transparent !important;
     margin: 0;
     padding: 0;
     overflow: hidden;
@@ -18,6 +19,7 @@
     height: 100%;
     position: relative;
     overflow: hidden;
+    background: transparent !important;
   }
   
   .circular-button {
@@ -29,23 +31,23 @@
     align-items: center;
     justify-content: center;
     position: relative;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(10px);
+    background: transparent !important;
+    backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
   }
   
   .circular-button::before {
     content: '';
     position: absolute;
-    inset: -2px;
+    inset: -1px;
     background: conic-gradient(
       from 0deg,
-      rgba(76, 0, 255, 0.8),     /* Brighter Electric Purple */
-      rgba(0, 183, 255, 0.8),    /* Brighter Blue */
-      rgba(255, 0, 255, 0.8),    /* Bright Magenta */
-      rgba(0, 217, 255, 0.8),    /* Brighter Cyan */
-      rgba(76, 0, 255, 0.8)      /* Back to start */
+      rgba(76, 0, 255, 0.8),
+      rgba(0, 183, 255, 0.8),
+      rgba(255, 0, 255, 0.8),
+      rgba(0, 217, 255, 0.8),
+      rgba(76, 0, 255, 0.8)
     );
     border-radius: 9999px;
     z-index: -1;
@@ -59,7 +61,7 @@
     inset: 1px;
     background: rgba(0, 0, 0, 0.85);
     border-radius: 9999px;
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(8px);
   }
   
   .button-content {
@@ -123,91 +125,81 @@
   }
   
   .expanded-menu {
-    position: absolute;
+    position: fixed;
     width: 100%;
     height: 100%;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0.5rem;
+    pointer-events: auto;
+    z-index: 999999;
   }
   
   .menu-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
+    gap: 8px;
     width: 100%;
     height: 100%;
-    padding: 1rem;
   }
   
-  .menu-grid button {
-    background: transparent;
-    border: none;
+  .menu-button {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
     color: rgba(255, 255, 255, 0.9);
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "San Francisco";
-    font-size: 0.75rem;
-    font-weight: 400;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    padding: 0.85rem 0.75rem;
+    gap: 6px;
+    padding: 8px;
     position: relative;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(8px);
   }
   
-  .menu-grid button::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 16px;
-    padding: 1px;
-    background: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.2),
-      rgba(255, 255, 255, 0.1) 30%,
-      rgba(255, 255, 255, 0.05)
-    );
-    -webkit-mask: 
-      linear-gradient(#fff 0 0) content-box, 
-      linear-gradient(#fff 0 0);
-    mask: 
-      linear-gradient(#fff 0 0) content-box, 
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
+  .menu-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: scale(1.05);
   }
   
-  .menu-grid button .icon-wrapper {
+  .menu-button .icon-wrapper {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
-    font-weight: 300;
+    font-size: 18px;
     height: 24px;
+    width: 24px;
   }
   
-  /* Icon colors using devicons */
-  .menu-grid button[data-icon="home"] .icon-wrapper { color: #E0E0E0; }
-  .menu-grid button[data-icon="back"] .icon-wrapper { color: #E0E0E0; }
-  .menu-grid button[data-icon="menu"] .icon-wrapper { color: #E0E0E0; }
-  .menu-grid button[data-icon="siri"] .icon-wrapper {
-    font-size: 1.5rem;
+  /* Icon colors */
+  .menu-button[data-icon="home"] .icon-wrapper { color: #E0E0E0; }
+  .menu-button[data-icon="back"] .icon-wrapper { 
+    color: #E0E0E0;
+    transform: rotate(270deg);
+  }
+  .menu-button[data-icon="menu"] .icon-wrapper { color: #E0E0E0; }
+  .menu-button[data-icon="siri"] .icon-wrapper {
+    font-size: 22px;
     background: linear-gradient(135deg, #7B61FF, #00CCB1);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    font-weight: 400;
   }
-  .menu-grid button[data-icon="lock"] .icon-wrapper { color: #FFD700; }
-  .menu-grid button[data-icon="control"] .icon-wrapper { color: #00CCB1; }
-  .menu-grid button[data-icon="volume"] .icon-wrapper { color: #1CA0FB; }
-  .menu-grid button[data-icon="mute"] .icon-wrapper { color: #FF4B4B; }
-  .menu-grid button[data-icon="settings"] .icon-wrapper { color: #00CCB1; }
+  .menu-button[data-icon="lock"] .icon-wrapper { color: #FFD700; }
+  .menu-button[data-icon="control"] .icon-wrapper { color: #00CCB1; }
+  .menu-button[data-icon="volume"] .icon-wrapper,
+  .menu-button[data-icon="mute"] .icon-wrapper {
+    font-size: 14px;
+    color: #1CA0FB;
+    transform: rotate(90deg);
+  }
+  .menu-button[data-icon="settings"] .icon-wrapper { color: #00CCB1; }
   
   /* Simple active state */
-  .menu-grid button:active {
+  .menu-button:active {
     opacity: 0.8;
   }
   
@@ -240,15 +232,15 @@
   }
   
   /* Update icon styles for volume and mute */
-  .menu-grid button[data-icon="volume"] .icon-wrapper,
-  .menu-grid button[data-icon="mute"] .icon-wrapper {
+  .menu-button[data-icon="volume"] .icon-wrapper,
+  .menu-button[data-icon="mute"] .icon-wrapper {
     font-size: 0.9rem; /* Slightly smaller for triangles */
     color: #1CA0FB;
     transform: rotate(90deg); /* Rotate triangles to point left/right */
   }
   
   /* Adjust back button */
-  .menu-grid button[data-icon="back"] .icon-wrapper {
+  .menu-button[data-icon="back"] .icon-wrapper {
     font-size: 1.2rem;
     transform: rotate(270deg); /* Point upward arrow to the left */
     color: #E0E0E0;

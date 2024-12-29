@@ -7,11 +7,13 @@ export const BackgroundGradient = ({
   className,
   containerClassName,
   animate = true,
+  style,
 }: {
   children?: React.ReactNode;
   className?: string;
   containerClassName?: string;
   animate?: boolean;
+  style?: React.CSSProperties;
 }) => {
   const variants = {
     initial: {
@@ -44,12 +46,14 @@ export const BackgroundGradient = ({
           "bg-[radial-gradient(circle_farthest-side_at_0_100%,#00ccb1,transparent),radial-gradient(circle_farthest-side_at_100%_0,#7b61ff,transparent),radial-gradient(circle_farthest-side_at_100%_100%,#ffc414,transparent),radial-gradient(circle_farthest-side_at_0_0,#1ca0fb,#141316)]"
         )}
       />
-
-      <div className={cn(
-        "relative z-10 rounded-[20px]",
-        "bg-black/80 backdrop-blur-md",
-        className
-      )}>
+      <div 
+        className={cn(
+          "relative z-10 rounded-[20px]",
+          "bg-black/80 backdrop-blur-md",
+          className
+        )}
+        style={style}
+      >
         {children}
       </div>
     </div>

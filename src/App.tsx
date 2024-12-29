@@ -5,15 +5,30 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { BackgroundGradient } from './ui/background-gradient'
 import './App.css'
 
-const WINDOW_SIZES = {
+// Base sizes in logical pixels (will be scaled by Tauri)
+const BASE_SIZES = {
   COLLAPSED: { width: 48, height: 48 },
-  EXPANDED: { width: 320, height: 380 }, // Increased to accommodate border and margin
-  CHAT: { width: 300, height: 500 }
+  EXPANDED: { width: 280, height: 340 }, // Optimized base size
+  CHAT: { width: 320, height: 480 }
 } as const
 
 function App() {
+  // Calculate window sizes based on screen dimensions
+  const getResponsiveSize = () => {
+    // We don't need to manually scale anymore since Tauri handles it
+    return {
+      COLLAPSED: BASE_SIZES.COLLAPSED,
+      EXPANDED: BASE_SIZES.EXPANDED,
+      CHAT: BASE_SIZES.CHAT
+    }
+  }
+
+  const WINDOW_SIZES = getResponsiveSize()
   const [isDragging, setIsDragging] = useState(false)
-  const [windowPos, setWindowPos] = useState({ x: 20, y: 20 })
+  const [windowPos, setWindowPos] = useState({ 
+    x: window.screen.width - WINDOW_SIZES.COLLAPSED.width - 20, // Better default position
+    y: 100 
+  })
   const [isExpanded, setIsExpanded] = useState(false)
   const [isChatOpen, setIsChatOpen] = useState(false)
 
@@ -35,10 +50,21 @@ function App() {
       // Get screen dimensions
       const screenWidth = window.screen.width
       const screenHeight = window.screen.height
+      
+      // Add padding from screen edges
+      const SCREEN_PADDING = 20
 
-      // Calculate new position with boundaries
-      const newX = Math.max(0, Math.min(screenWidth - 48, windowPos.x + dx))
-      const newY = Math.max(0, Math.min(screenHeight - 48, windowPos.y + dy))
+      // Calculate new position with boundaries and padding
+      const newX = Math.max(
+        SCREEN_PADDING, 
+        Math.min(screenWidth - WINDOW_SIZES.COLLAPSED.width - SCREEN_PADDING, 
+        windowPos.x + dx)
+      )
+      const newY = Math.max(
+        SCREEN_PADDING, 
+        Math.min(screenHeight - WINDOW_SIZES.COLLAPSED.height - SCREEN_PADDING, 
+        windowPos.y + dy)
+      )
 
       setWindowPos({ x: newX, y: newY })
       invoke('move_window', { x: newX, y: newY })
@@ -85,26 +111,31 @@ function App() {
     if (transitioningRef.current) return
     transitioningRef.current = true
 
-    // Calculate center position for expanded view
     const screenWidth = window.screen.width
     const screenHeight = window.screen.height
     const expandedWidth = WINDOW_SIZES.EXPANDED.width
     const expandedHeight = WINDOW_SIZES.EXPANDED.height
 
-    // Calculate new position to center the expanded window
-    const expandedX = Math.max(0, Math.min(
-      screenWidth - expandedWidth,
-      windowPos.x - (expandedWidth - WINDOW_SIZES.COLLAPSED.width) / 2
-    ))
-    const expandedY = Math.max(0, Math.min(
-      screenHeight - expandedHeight,
-      windowPos.y - (expandedHeight - WINDOW_SIZES.COLLAPSED.height) / 2
-    ))
+    // Calculate position to ensure menu is fully visible
+    let expandedX = windowPos.x - (expandedWidth - WINDOW_SIZES.COLLAPSED.width)
+    let expandedY = windowPos.y - (expandedHeight / 4)
 
-    // Set new size and position
+    // Screen edge padding
+    const SCREEN_PADDING = 16
+
+    // Adjust if too close to screen edges
+    if (expandedX < SCREEN_PADDING) expandedX = SCREEN_PADDING
+    if (expandedY < SCREEN_PADDING) expandedY = SCREEN_PADDING
+    if (expandedX + expandedWidth > screenWidth - SCREEN_PADDING) {
+      expandedX = screenWidth - expandedWidth - SCREEN_PADDING
+    }
+    if (expandedY + expandedHeight > screenHeight - SCREEN_PADDING) {
+      expandedY = screenHeight - expandedHeight - SCREEN_PADDING
+    }
+
     await invoke('set_window_size', { 
       width: expandedWidth,
-      height: expandedHeight 
+      height: expandedHeight
     })
     await invoke('move_window', { x: expandedX, y: expandedY })
     setIsExpanded(true)
@@ -150,12 +181,13 @@ function App() {
 
   return (
     <div className="app-container">
-      <motion.div className="w-full h-full" onMouseDown={handleMouseDown}>
+      <motion.div 
+        className="w-full h-full bg-transparent" 
+        style={{ background: 'transparent' }}
+        onMouseDown={handleMouseDown}
+      >
         <AnimatePresence mode="wait">
           {isChatOpen ? (
-            // -----------------
-            // CHAT VIEW
-            // -----------------
             <motion.div
               key="chat"
               initial={{ scale: 0.8, opacity: 0 }}
@@ -169,15 +201,13 @@ function App() {
               }}
             >
               {/* Chat Header */}
-              <div className="flex items-center justify-between p-4 border-b border-white/10">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-8 h-8 rounded-full bg-blue-500/20 
-                               flex items-center justify-center text-lg"
-                  >
+              <div className="flex items-center justify-between p-3 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-blue-500/20 
+                                 flex items-center justify-center text-base">
                     ◎
                   </div>
-                  <span className="text-white/90 font-medium">AI Assistant</span>
+                  <span className="text-white/90 font-medium text-sm">AI Assistant</span>
                 </div>
                 <button
                   onClick={handleCloseChat}
@@ -188,22 +218,20 @@ function App() {
               </div>
 
               {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                <div className="flex items-start gap-3">
-                  <div
-                    className="w-8 h-8 rounded-full bg-blue-500/20 
-                               flex items-center justify-center text-lg shrink-0"
-                  >
+              <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                <div className="flex items-start gap-2">
+                  <div className="w-7 h-7 rounded-full bg-blue-500/20 
+                                 flex items-center justify-center text-base shrink-0">
                     ◎
                   </div>
-                  <div className="bg-white/10 rounded-2xl rounded-tl-sm p-3 text-white/90 text-sm">
+                  <div className="bg-white/10 rounded-2xl rounded-tl-sm p-2.5 text-white/90 text-sm">
                     Hello! How can I help you today?
                   </div>
                 </div>
               </div>
 
               {/* Chat Input */}
-              <div className="p-4 border-t border-white/10">
+              <div className="p-3 border-t border-white/10">
                 <div className="flex items-center gap-2 bg-white/10 rounded-xl p-2">
                   <input
                     type="text"
@@ -212,19 +240,16 @@ function App() {
                              placeholder:text-white/50 text-sm px-2"
                   />
                   <button
-                    className="w-8 h-8 rounded-full bg-blue-500/20 
+                    className="w-7 h-7 rounded-full bg-blue-500/20 
                                flex items-center justify-center text-white/90
                                hover:bg-blue-500/30 transition-colors"
                   >
-                    ��
+                    ↑
                   </button>
                 </div>
               </div>
             </motion.div>
           ) : isExpanded ? (
-            // -----------------
-            // EXPANDED MENU
-            // -----------------
             <motion.div
               ref={expandedMenuRef}
               key="expanded"
@@ -232,10 +257,17 @@ function App() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
               className="expanded-menu"
+              onAnimationComplete={() => {
+                transitioningRef.current = false
+              }}
             >
               <BackgroundGradient 
-                className="p-6 min-w-[300px]"
-                containerClassName="p-[3px] rounded-[28px]"
+                className="p-3"
+                containerClassName="rounded-[20px] p-[3px]"
+                style={{
+                  width: WINDOW_SIZES.EXPANDED.width - 6,
+                  height: WINDOW_SIZES.EXPANDED.height - 6
+                }}
               >
                 <div className="menu-grid">
                   {[
@@ -253,20 +285,18 @@ function App() {
                       key={i}
                       onClick={onClick}
                       data-icon={iconType}
+                      className="menu-button"
                     >
                       <div className="icon-wrapper">
                         {icon}
                       </div>
-                      <span>{label}</span>
+                      <span className="text-xs">{label}</span>
                     </button>
                   ))}
                 </div>
               </BackgroundGradient>
             </motion.div>
           ) : (
-            // -----------------
-            // COLLAPSED (CIRCLE) BUTTON
-            // -----------------
             <motion.button
               key="collapsed"
               className="circular-button"

@@ -23,6 +23,7 @@
         "skipTaskbar": true,
         "resizable": false,
         "visible": false,
+        "hiddenTitle": true,
         "x": 20,
         "y": 20
       }
