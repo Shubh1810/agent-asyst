@@ -24,6 +24,9 @@
         "resizable": false,
         "visible": false,
         "hiddenTitle": true,
+        "maximizable": false,
+        "minimizable": false,
+        "contentProtected": true,
         "x": 20,
         "y": 20
       }

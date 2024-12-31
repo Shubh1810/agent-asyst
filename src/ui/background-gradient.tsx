@@ -43,7 +43,7 @@ export const BackgroundGradient = ({
         }}
         className={cn(
           "absolute inset-0 rounded-3xl z-[1]",
-          "bg-[radial-gradient(circle_farthest-side_at_0_100%,#00ccb1,transparent),radial-gradient(circle_farthest-side_at_100%_0,#7b61ff,transparent),radial-gradient(circle_farthest-side_at_100%_100%,#ffc414,transparent),radial-gradient(circle_farthest-side_at_0_0,#1ca0fb,#141316)]"
+          "bg-[radial-gradient(circle_farthest-side_at_0_100%,#2B4BF2,transparent_70%),radial-gradient(circle_farthest-side_at_100%_0,#A855F7,transparent_70%),radial-gradient(circle_farthest-side_at_100%_100%,#3B82F6,transparent_70%),radial-gradient(circle_farthest-side_at_0_0,#2563EB,#141316)]"
         )}
       />
       <div 

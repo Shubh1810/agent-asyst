@@ -13,69 +13,33 @@ const BASE_SIZES = {
 } as const
 
 function App() {
-  // Calculate window sizes based on screen dimensions
-  const getResponsiveSize = () => {
-    // We don't need to manually scale anymore since Tauri handles it
-    return {
-      COLLAPSED: BASE_SIZES.COLLAPSED,
-      EXPANDED: BASE_SIZES.EXPANDED,
-      CHAT: BASE_SIZES.CHAT
-    }
-  }
+  // Calculate window sizes (Tauri handles DPI scaling)
+  const WINDOW_SIZES = BASE_SIZES
 
-  const WINDOW_SIZES = getResponsiveSize()
-  const [isDragging, setIsDragging] = useState(false)
+  // --- State variables ---
   const [windowPos, setWindowPos] = useState({ 
-    x: window.screen.width - WINDOW_SIZES.COLLAPSED.width - 20, // Better default position
-    y: 100 
+    x: 20,
+    y: 100
   })
   const [isExpanded, setIsExpanded] = useState(false)
   const [isChatOpen, setIsChatOpen] = useState(false)
 
-  const dragStartRef = useRef({ x: 0, y: 0 })
+  // --- Refs ---
   const expandedMenuRef = useRef<HTMLDivElement>(null)
   const transitioningRef = useRef(false)
+  const isDraggingRef = useRef(false)
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (isExpanded) return // Prevent dragging in expanded state
-    setIsDragging(true)
-    dragStartRef.current = { x: e.clientX, y: e.clientY }
-  }
+  // For storing the pointer’s offset from the window’s top-left corner
+  const dragOffsetRef = useRef({ x: 0, y: 0 })
 
-  const handleMouseMove = (e: MouseEvent) => {
-    if (isDragging && !isExpanded) {
-      const dx = e.clientX - dragStartRef.current.x
-      const dy = e.clientY - dragStartRef.current.y
+  // For pointer capture
+  const capturedElementRef = useRef<HTMLDivElement | null>(null)
 
-      // Get screen dimensions
-      const screenWidth = window.screen.width
-      const screenHeight = window.screen.height
-      
-      // Add padding from screen edges
-      const SCREEN_PADDING = 20
+  // For requestAnimationFrame-based window updates
+  const requestFrameRef = useRef<number | null>(null)
+  const pendingPositionRef = useRef<{ x: number; y: number } | null>(null)
 
-      // Calculate new position with boundaries and padding
-      const newX = Math.max(
-        SCREEN_PADDING, 
-        Math.min(screenWidth - WINDOW_SIZES.COLLAPSED.width - SCREEN_PADDING, 
-        windowPos.x + dx)
-      )
-      const newY = Math.max(
-        SCREEN_PADDING, 
-        Math.min(screenHeight - WINDOW_SIZES.COLLAPSED.height - SCREEN_PADDING, 
-        windowPos.y + dy)
-      )
-
-      setWindowPos({ x: newX, y: newY })
-      invoke('move_window', { x: newX, y: newY })
-      dragStartRef.current = { x: e.clientX, y: e.clientY }
-    }
-  }
-
-  const handleMouseUp = () => {
-    setIsDragging(false)
-  }
-
+  // --- Handle outside clicks & blur to collapse menu if expanded ---
   const handleClickOutside = (e: MouseEvent) => {
     if (
       isExpanded &&
@@ -94,65 +58,148 @@ function App() {
   }
 
   useEffect(() => {
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
     window.addEventListener('mousedown', handleClickOutside)
     window.addEventListener('blur', handleWindowBlur)
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
       window.removeEventListener('mousedown', handleClickOutside)
       window.removeEventListener('blur', handleWindowBlur)
     }
-  }, [isDragging, windowPos, isExpanded])
+  }, [isExpanded])
 
+  // --- Pointer-based dragging ---
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isExpanded) return
+
+    const element = e.currentTarget
+    element.setPointerCapture(e.pointerId)
+    capturedElementRef.current = element
+
+    isDraggingRef.current = true
+
+    // Calculate offset so window doesn't "jump" to pointer's top-left corner
+    dragOffsetRef.current = {
+      x: e.clientX - windowPos.x,
+      y: e.clientY - windowPos.y
+    }
+  }
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current || isExpanded) return
+
+    // Next position = pointer minus initial offset
+    const newX = e.clientX - dragOffsetRef.current.x
+    const newY = e.clientY - dragOffsetRef.current.y
+
+    // Update UI immediately for a crisp follow
+    setWindowPos({ x: newX, y: newY })
+
+    // Queue the Tauri move
+    pendingPositionRef.current = { x: newX, y: newY }
+
+    // Use requestAnimationFrame to avoid spamming Tauri
+    if (!requestFrameRef.current) {
+      requestFrameRef.current = requestAnimationFrame(() => {
+        requestFrameRef.current = null
+        if (pendingPositionRef.current) {
+          invoke('move_window', pendingPositionRef.current)
+            .catch(error => console.error('Failed to move window:', error))
+          pendingPositionRef.current = null
+        }
+      })
+    }
+  }
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (capturedElementRef.current) {
+      capturedElementRef.current.releasePointerCapture(e.pointerId)
+      capturedElementRef.current = null
+    }
+    isDraggingRef.current = false
+    
+    // Ensure window is still visible after drag
+    invoke('set_window_visible', { visible: true })
+      .catch(error => console.error('Failed to show window:', error))
+  }
+
+  // Clean up pointer capture and any pending requestAnimationFrame on unmount
+  useEffect(() => {
+    // Ensure window is visible on start
+    invoke('set_window_visible', { visible: true })
+      .catch(error => console.error('Failed to show window:', error))
+
+    return () => {
+      // Clean up any pending operations before unmount
+      if (requestFrameRef.current) {
+        cancelAnimationFrame(requestFrameRef.current)
+        requestFrameRef.current = null
+      }
+      if (capturedElementRef.current) {
+        capturedElementRef.current.releasePointerCapture(0)
+        capturedElementRef.current = null
+      }
+    }
+  }, [])
+
+  // --- Expand & Collapse ---
   const handleExpand = async () => {
     if (transitioningRef.current) return
     transitioningRef.current = true
 
-    const screenWidth = window.screen.width
-    const screenHeight = window.screen.height
     const expandedWidth = WINDOW_SIZES.EXPANDED.width
     const expandedHeight = WINDOW_SIZES.EXPANDED.height
+    const collapsedWidth = WINDOW_SIZES.COLLAPSED.width
+    const collapsedHeight = WINDOW_SIZES.COLLAPSED.height
 
-    // Calculate position to ensure menu is fully visible
-    let expandedX = windowPos.x - (expandedWidth - WINDOW_SIZES.COLLAPSED.width)
-    let expandedY = windowPos.y - (expandedHeight / 4)
+    // Calculate expansion from the exact center of the button
+    const expandedX = windowPos.x - (expandedWidth - collapsedWidth) / 2
+    const expandedY = windowPos.y - (expandedHeight - collapsedHeight) / 2
 
-    // Screen edge padding
-    const SCREEN_PADDING = 16
-
-    // Adjust if too close to screen edges
-    if (expandedX < SCREEN_PADDING) expandedX = SCREEN_PADDING
-    if (expandedY < SCREEN_PADDING) expandedY = SCREEN_PADDING
-    if (expandedX + expandedWidth > screenWidth - SCREEN_PADDING) {
-      expandedX = screenWidth - expandedWidth - SCREEN_PADDING
-    }
-    if (expandedY + expandedHeight > screenHeight - SCREEN_PADDING) {
-      expandedY = screenHeight - expandedHeight - SCREEN_PADDING
-    }
-
-    await invoke('set_window_size', { 
-      width: expandedWidth,
-      height: expandedHeight
-    })
+    // 1) Resize to expanded
+    await invoke('set_window_size', { width: expandedWidth, height: expandedHeight })
+    // 2) Position so the center remains consistent
     await invoke('move_window', { x: expandedX, y: expandedY })
+    
+    // Update local state
+    setWindowPos({ x: expandedX, y: expandedY })
     setIsExpanded(true)
+    transitioningRef.current = false
   }
 
   const handleCollapse = async () => {
     if (transitioningRef.current) return
     transitioningRef.current = true
 
+    // We'll hide the expanded UI *after* resizing to avoid the rectangular glitch.
+    // So do *not* call setIsExpanded(false) yet.
+
+    const expandedWidth = WINDOW_SIZES.EXPANDED.width
+    const expandedHeight = WINDOW_SIZES.EXPANDED.height
+    const collapsedWidth = WINDOW_SIZES.COLLAPSED.width
+    const collapsedHeight = WINDOW_SIZES.COLLAPSED.height
+
+    // Calculate the new position that keeps the same center
+    const currentCenterX = windowPos.x + expandedWidth / 2
+    const currentCenterY = windowPos.y + expandedHeight / 2
+    
+    const collapsedX = currentCenterX - collapsedWidth / 2
+    const collapsedY = currentCenterY - collapsedHeight / 2
+
+    // 1) First resize the Tauri window
+    await invoke('set_window_size', { width: collapsedWidth, height: collapsedHeight })
+    // 2) Then move the Tauri window to keep center aligned
+    await invoke('move_window', { x: collapsedX, y: collapsedY })
+
+    // 3) Now that the OS sees 48x48, show the small circle UI
     setIsExpanded(false)
-    await invoke('set_window_size', { width: 48, height: 48 })
-    await invoke('move_window', { x: windowPos.x, y: windowPos.y })
-    // No more setTimeout; rely on onAnimationComplete in the collapsed motion.
+    setWindowPos({ x: collapsedX, y: collapsedY })
+    transitioningRef.current = false
   }
 
+  // --- Menu Button Clicks ---
   const handleClick = async () => {
-    if (isDragging || transitioningRef.current) return
+    if (isDraggingRef.current || transitioningRef.current) return
+
     if (isExpanded) {
       await handleCollapse()
     } else {
@@ -162,6 +209,7 @@ function App() {
 
   const handleSiriClick = async () => {
     setIsChatOpen(true)
+    // Collapse before opening chat
     await handleCollapse()
     await invoke('set_window_size', { width: 300, height: 500 })
   }
@@ -172,22 +220,26 @@ function App() {
   }
 
   const handleBack = async () => {
-    // First collapse the assistive touch menu
     await handleCollapse()
-
-    // Use browser's native history
     window.history.back()
   }
 
+  // --- Render ---
   return (
     <div className="app-container">
-      <motion.div 
-        className="w-full h-full bg-transparent" 
-        style={{ background: 'transparent' }}
-        onMouseDown={handleMouseDown}
+      <motion.div
+        className="w-full h-full bg-transparent"
+        style={{ background: 'transparent', touchAction: 'none' }} // Prevent touch scrolling
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
       >
         <AnimatePresence mode="wait">
           {isChatOpen ? (
+            // ---------------------------------------
+            // Chat (expanded to a chat window)
+            // ---------------------------------------
             <motion.div
               key="chat"
               initial={{ scale: 0.8, opacity: 0 }}
@@ -250,16 +302,17 @@ function App() {
               </div>
             </motion.div>
           ) : isExpanded ? (
+            // ---------------------------------------
+            // Expanded radial menu
+            // ---------------------------------------
             <motion.div
               ref={expandedMenuRef}
               key="expanded"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
+              initial={{ opacity: 1 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 1 }}
+              transition={{ duration: 0 }}
               className="expanded-menu"
-              onAnimationComplete={() => {
-                transitioningRef.current = false
-              }}
             >
               <BackgroundGradient 
                 className="p-3"
@@ -297,17 +350,17 @@ function App() {
               </BackgroundGradient>
             </motion.div>
           ) : (
+            // ---------------------------------------
+            // Collapsed circular button
+            // ---------------------------------------
             <motion.button
               key="collapsed"
               className="circular-button"
               onClick={handleClick}
-              whileHover={{ scale: 1.05 }}
-              initial={{ opacity: 0 }}
+              initial={{ opacity: 1 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onAnimationComplete={() => {
-                transitioningRef.current = false
-              }}
+              exit={{ opacity: 1 }}
+              transition={{ duration: 0 }}
             >
               <div className="button-content" />
             </motion.button>
