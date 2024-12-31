@@ -4,6 +4,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { motion, AnimatePresence } from 'framer-motion'
 import { BackgroundGradient } from './ui/background-gradient'
 import './App.css'
+import { AIChat } from './components/AIChat'
+import { CardSpotlight } from './ui/card-spotlight'
+import { cn } from './lib/utilts'
 
 // Base sizes in logical pixels (will be scaled by Tauri)
 const BASE_SIZES = {
@@ -237,70 +240,7 @@ function App() {
       >
         <AnimatePresence mode="wait">
           {isChatOpen ? (
-            // ---------------------------------------
-            // Chat (expanded to a chat window)
-            // ---------------------------------------
-            <motion.div
-              key="chat"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              className="w-full h-full bg-black/80 backdrop-blur-xl
-                         rounded-3xl border border-white/10 overflow-hidden
-                         flex flex-col"
-              onAnimationComplete={() => {
-                transitioningRef.current = false
-              }}
-            >
-              {/* Chat Header */}
-              <div className="flex items-center justify-between p-3 border-b border-white/10">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-blue-500/20 
-                                 flex items-center justify-center text-base">
-                    ◎
-                  </div>
-                  <span className="text-white/90 font-medium text-sm">AI Assistant</span>
-                </div>
-                <button
-                  onClick={handleCloseChat}
-                  className="text-white/50 hover:text-white/90 transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-3">
-                <div className="flex items-start gap-2">
-                  <div className="w-7 h-7 rounded-full bg-blue-500/20 
-                                 flex items-center justify-center text-base shrink-0">
-                    ◎
-                  </div>
-                  <div className="bg-white/10 rounded-2xl rounded-tl-sm p-2.5 text-white/90 text-sm">
-                    Hello! How can I help you today?
-                  </div>
-                </div>
-              </div>
-
-              {/* Chat Input */}
-              <div className="p-3 border-t border-white/10">
-                <div className="flex items-center gap-2 bg-white/10 rounded-xl p-2">
-                  <input
-                    type="text"
-                    placeholder="Type a message..."
-                    className="flex-1 bg-transparent border-none outline-none text-white/90 
-                             placeholder:text-white/50 text-sm px-2"
-                  />
-                  <button
-                    className="w-7 h-7 rounded-full bg-blue-500/20 
-                               flex items-center justify-center text-white/90
-                               hover:bg-blue-500/30 transition-colors"
-                  >
-                    ↑
-                  </button>
-                </div>
-              </div>
-            </motion.div>
+            <AIChat onClose={handleCloseChat} />
           ) : isExpanded ? (
             // ---------------------------------------
             // Expanded radial menu
@@ -315,37 +255,129 @@ function App() {
               className="expanded-menu"
             >
               <BackgroundGradient 
-                className="p-3"
+                className="p-3 flex flex-col h-full"
                 containerClassName="rounded-[20px] p-[3px]"
                 style={{
                   width: WINDOW_SIZES.EXPANDED.width - 6,
                   height: WINDOW_SIZES.EXPANDED.height - 6
                 }}
               >
-                <div className="menu-grid">
-                  {[
-                    { label: 'Home', icon: '⌂', onClick: () => {}, iconType: 'home' },
-                    { label: 'Back', icon: '↑', onClick: handleBack, iconType: 'back' },
-                    { label: 'Menu', icon: '≡', onClick: () => {}, iconType: 'menu' },
-                    { label: 'Siri', icon: '◎', onClick: handleSiriClick, iconType: 'siri' },
-                    { label: 'Lock', icon: '🔒', onClick: () => {}, iconType: 'lock' },
-                    { label: 'Control', icon: '⚙️', onClick: () => {}, iconType: 'control' },
-                    { label: 'Volume', icon: '▲', onClick: () => {}, iconType: 'volume' },
-                    { label: 'Mute', icon: '▼', onClick: () => {}, iconType: 'mute' },
-                    { label: 'Settings', icon: '⚙️', onClick: () => {}, iconType: 'settings' }
-                  ].map(({ label, icon, onClick, iconType }, i) => (
-                    <button
-                      key={i}
-                      onClick={onClick}
-                      data-icon={iconType}
-                      className="menu-button"
+                {/* Top bar with back button */}
+                <div className="flex justify-end mb-2 shrink-0">
+                  <button
+                    onClick={handleBack}
+                    className="text-white/70 hover:text-white/90 transition-colors p-1.5 rounded-full close-button"
+                  >
+                    <svg 
+                      width="16" 
+                      height="16" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="url(#closeGradient)" 
+                      strokeWidth="2.5" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
                     >
-                      <div className="icon-wrapper">
-                        {icon}
-                      </div>
-                      <span className="text-xs">{label}</span>
-                    </button>
-                  ))}
+                      <defs>
+                        <linearGradient id="closeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#FF3131" />
+                          <stop offset="50%" stopColor="#FF8C00" />
+                          <stop offset="100%" stopColor="#FFD700" />
+                        </linearGradient>
+                      </defs>
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Scrollable content */}
+                <div className="overflow-y-auto flex-1 pr-1">
+                  <div className="menu-grid">
+                    {[
+                      { 
+                        label: <span>LeoAI <strong>BETA</strong></span>,
+                        icon: '◎', 
+                        onClick: handleSiriClick, 
+                        iconType: 'ai-chat',
+                        description: 'Smart conversational AI',
+                        className: 'relative overflow-hidden'
+                      },
+                      { 
+                        label: <strong>Vision</strong>, 
+                        icon: '', 
+                        onClick: () => {}, 
+                        iconType: 'vision',
+                        description: 'Visual recognition & analysis'
+                      },
+                      { 
+                        label: <strong>Voice</strong>, 
+                        icon: '🎙', 
+                        onClick: () => {}, 
+                        iconType: 'voice',
+                        description: 'Voice commands & dictation'
+                      },
+                      { 
+                        label: <strong>Workflow</strong>, 
+                        icon: '⚡', 
+                        onClick: () => {}, 
+                        iconType: 'workflow',
+                        description: 'Create custom AI workflows'
+                      },
+                      { 
+                        label: <strong>Memory</strong>, 
+                        icon: '󰍉',
+                        onClick: () => {}, 
+                        iconType: 'memory',
+                        description: 'Context & learning'
+                      },
+                      { 
+                        label: <strong>Data</strong>, 
+                        icon: '', 
+                        onClick: () => {}, 
+                        iconType: 'data',
+                        description: 'Data insights'
+                      },
+                      { 
+                        label: <strong>Create</strong>, 
+                        icon: '✨', 
+                        onClick: () => {}, 
+                        iconType: 'create',
+                        description: 'AI content generation'
+                      },
+                      { 
+                        label: 'Automate', 
+                        icon: '🤖', 
+                        onClick: () => {}, 
+                        iconType: 'automate',
+                        description: 'Smart task automation'
+                      },
+                      { 
+                        label: 'Settings', 
+                        icon: '⚙️', 
+                        onClick: () => {}, 
+                        iconType: 'settings',
+                        description: 'Customize AI behavior'
+                      }
+                    ].map(({ label, icon, onClick, iconType, description, className }, i) => (
+                      <CardSpotlight
+                        key={i}
+                        radius={100}
+                        color="rgba(123, 97, 255, 0.1)"
+                        className={cn(
+                          "menu-button",
+                          "text-center",
+                          className
+                        )}
+                        onClick={onClick}
+                        data-icon={iconType}
+                      >
+                        <div className="icon-wrapper relative z-20">
+                          {icon}
+                        </div>
+                        <span className="text-xs relative z-20 block">{label}</span>
+                      </CardSpotlight>
+                    ))}
+                  </div>
                 </div>
               </BackgroundGradient>
             </motion.div>

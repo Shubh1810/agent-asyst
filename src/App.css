@@ -137,8 +137,8 @@
   
   .menu-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+    grid-template-columns: repeat(3, minmax(70px, 1fr));
+    gap: 6px;
     width: 100%;
     height: 100%;
   }
@@ -157,10 +157,20 @@
     padding: 8px;
     position: relative;
     backdrop-filter: blur(8px);
+    transform: translate3d(0, 0, 0);
+    will-change: transform;
+    contain: layout size;
+    min-width: 70px;
+    max-width: 75px;
+    min-height: 80px;
+    max-height: 85px;
+    transition: none;
+    transform: none !important;
   }
   
   .menu-button:hover {
-    background: rgba(255, 255, 255, 0.1);
+    transform: none !important;
+    scale: none !important;
   }
   
   .menu-button .icon-wrapper {
@@ -170,6 +180,7 @@
     font-size: 18px;
     height: 24px;
     width: 24px;
+    transform: none !important;
   }
   
   /* Icon colors */
@@ -181,7 +192,7 @@
   .menu-button[data-icon="menu"] .icon-wrapper { color: #E0E0E0; }
   .menu-button[data-icon="siri"] .icon-wrapper {
     font-size: 22px;
-    background: linear-gradient(135deg, #7B61FF, #00CCB1);
+    background: linear-gradient(135deg, #ffffff, #00CCB1);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
@@ -194,6 +205,22 @@
     transform: rotate(90deg);
   }
   .menu-button[data-icon="settings"] .icon-wrapper { color: #00CCB1; }
+  .menu-button[data-icon="ai-chat"] .icon-wrapper { 
+    color: #b3ddff;
+    font-size: 22px;
+  }
+  .menu-button[data-icon="vision"] .icon-wrapper { color: #00B4D8; }
+  .menu-button[data-icon="voice"] .icon-wrapper { color: #FF61D8; }
+  .menu-button[data-icon="workflow"] .icon-wrapper { color: #FFD93D; }
+  .menu-button[data-icon="memory"] .icon-wrapper { color: #4dffa6; }
+  .menu-button[data-icon="data"] .icon-wrapper { color: #4D96FF; }
+  .menu-button[data-icon="create"] .icon-wrapper { color: #FF6B6B; }
+  .menu-button[data-icon="automate"] .icon-wrapper { 
+    background: linear-gradient(135deg, #FF6B6B, #4ECDC4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .menu-button[data-icon="settings"] .icon-wrapper { color: #95A5A6; }
   
   /* Simple active state */
   .menu-button:active {
@@ -241,4 +268,26 @@
     font-size: 1.2rem;
     transform: rotate(270deg); /* Point upward arrow to the left */
     color: #E0E0E0;
+  }
+  
+  /* Close button styles */
+  .close-button {
+    position: relative;
+    z-index: 10;
+  }
+  
+  .close-button:hover {
+    background: rgba(255, 0, 0, 0.08);
+    box-shadow: inset 0 0 12px rgba(255, 0, 0, 0.15);
+  }
+  
+  .close-button:hover svg {
+    filter: drop-shadow(0 0 4px rgba(255, 0, 0, 0.4)) 
+           drop-shadow(0 0 8px rgba(255, 0, 0, 0.2));
+    transform: scale(1.05);
+  }
+  
+  /* Prevent hover scaling */
+  .menu-button[data-icon="ai-chat"]:hover {
+    transform: none !important;
   }
