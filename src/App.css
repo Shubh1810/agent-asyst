@@ -291,3 +291,133 @@
   .menu-button[data-icon="ai-chat"]:hover {
     transform: none !important;
   }
+  
+  /* Search styles */
+  .search-input {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    padding-right: 5rem; /* Make room for shortcut badges */
+  }
+  
+  .search-input:focus {
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+  
+  .search-icon {
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.2));
+  }
+  
+  /* Keyboard shortcut badges */
+  .shortcut-badge {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 2px 4px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    backdrop-filter: blur(8px);
+    box-shadow: 
+      0 2px 4px rgba(0, 0, 0, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  
+  kbd {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-feature-settings: "ss02" on, "ss03" on, "ss04" on;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+    letter-spacing: 0.05em;
+  }
+  
+  .shortcut-badge span {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 10px;
+    font-weight: 400;
+  }
+  
+  /* No results message */
+  .no-results {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    border-radius: 8px;
+    padding: 0.5rem;
+    color: rgba(255, 255, 255, 0.7);
+    text-align: center;
+    font-size: 0.75rem;
+    margin-top: 0.5rem;
+    animation: fadeIn 0.2s ease;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Description tooltip with improved animation */
+  .menu-button .description-tooltip {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 4px;
+    background: rgba(0, 0, 0, 0.8);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 10px;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 0 0 12px 12px;
+    backdrop-filter: blur(4px);
+  }
+  
+  .menu-button:hover .description-tooltip {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  
+  /* Highlight matching text in search results */
+  .menu-button.search-match {
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+  
+  .menu-button.search-match .icon-wrapper {
+    transform: scale(1.1);
+    transition: transform 0.2s ease;
+  }
+  
+  /* Prevent hover scaling */
+  .menu-button[data-icon="ai-chat"]:hover {
+    transform: none !important;
+  }
+  
+  /* Search container */
+  .search-container input {
+    background: rgba(26, 27, 30, 0.95);
+    border: 1px solid rgba(147, 51, 234, 0.3);
+    box-shadow: 
+      0 0 15px rgba(147, 51, 234, 0.2),
+      0 0 30px rgba(147, 51, 234, 0.1);
+    backdrop-filter: blur(20px);
+    transition: all 0.2s ease;
+  }
+  
+  .search-container input:focus {
+    border-color: rgba(147, 51, 234, 0.5);
+    box-shadow: 
+      0 0 20px rgba(147, 51, 234, 0.25),
+      0 0 40px rgba(147, 51, 234, 0.15);
+  }
