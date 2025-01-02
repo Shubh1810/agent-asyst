@@ -2,18 +2,29 @@ import { cn } from "../lib/utilts";
 import React from "react";
 import { motion } from "framer-motion";
 
+type GradientPreset = 'default' | 'settings' | 'automation' | 'chat';
+
+const GRADIENT_PRESETS: Record<GradientPreset, string> = {
+  default: "bg-[radial-gradient(circle_farthest-side_at_0_100%,#2B4BF2,transparent_70%),radial-gradient(circle_farthest-side_at_100%_0,#A855F7,transparent_70%),radial-gradient(circle_farthest-side_at_100%_100%,#3B82F6,transparent_70%),radial-gradient(circle_farthest-side_at_0_0,#2563EB,#141316)]",
+  settings: "bg-[radial-gradient(circle_farthest-side_at_0_100%,#059669,transparent_70%),radial-gradient(circle_farthest-side_at_100%_0,#10B981,transparent_70%),radial-gradient(circle_farthest-side_at_100%_100%,#34D399,transparent_70%),radial-gradient(circle_farthest-side_at_0_0,#047857,#141316)]",
+  automation: "bg-[radial-gradient(circle_farthest-side_at_0_100%,#9f1239,transparent_60%),radial-gradient(circle_farthest-side_at_100%_0,#be123c,transparent_70%),radial-gradient(circle_farthest-side_at_100%_100%,#4c0519,transparent_60%),radial-gradient(circle_farthest-side_at_0_0,#9f1239,#09090b)]",
+  chat: "bg-[radial-gradient(circle_farthest-side_at_0_100%,#2563EB,transparent_70%),radial-gradient(circle_farthest-side_at_100%_0,#3B82F6,transparent_70%),radial-gradient(circle_farthest-side_at_100%_100%,#60A5FA,transparent_70%),radial-gradient(circle_farthest-side_at_0_0,#1D4ED8,#141316)]"
+};
+
 export const BackgroundGradient = ({
   children,
   className,
   containerClassName,
   animate = true,
   style,
+  preset = 'default'
 }: {
   children?: React.ReactNode;
   className?: string;
   containerClassName?: string;
   animate?: boolean;
   style?: React.CSSProperties;
+  preset?: GradientPreset;
 }) => {
   const variants = {
     initial: {
@@ -43,7 +54,7 @@ export const BackgroundGradient = ({
         }}
         className={cn(
           "absolute inset-0 rounded-3xl z-[1]",
-          "bg-[radial-gradient(circle_farthest-side_at_0_100%,#2B4BF2,transparent_70%),radial-gradient(circle_farthest-side_at_100%_0,#A855F7,transparent_70%),radial-gradient(circle_farthest-side_at_100%_100%,#3B82F6,transparent_70%),radial-gradient(circle_farthest-side_at_0_0,#2563EB,#141316)]"
+          GRADIENT_PRESETS[preset]
         )}
       />
       <div 

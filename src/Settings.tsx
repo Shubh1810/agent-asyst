@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Select } from './ui/Select'
 import { Toggle } from './ui/Toggle'
 import { SecureInput } from './ui/SecureInput'
-import { BackgroundGradient } from './ui/background-gradient'
+import { store } from './store'
 
 // Utility function for class names
 const cn = (...classes: (string | boolean | undefined)[]) => 
@@ -24,7 +24,7 @@ const ColorButton: React.FC<{ color: string; isSelected?: boolean }> = ({
 )
 
 // Back button component
-const BackButton: React.FC = () => (
+export const BackButton: React.FC = () => (
   <button
     className="text-white/50 hover:text-white/90 transition-colors p-1.5 rounded-full"
     onClick={() => window.history.back()}
@@ -103,136 +103,238 @@ interface SettingsPanelProps {
   onClose: () => void
 }
 
-// Custom background gradient component for settings
-const SettingsBackgroundGradient: React.FC<{
-  children: React.ReactNode
-}> = ({ children }) => (
-  <div className="relative p-[3px] h-full rounded-[20px]">
-    <motion.div
-      className="absolute inset-0 rounded-3xl z-[1]"
-      style={{
-        background: `
-          radial-gradient(circle at 0% 100%, #0EA5E9 0%, transparent 50%),
-          radial-gradient(circle at 100% 0%, #2DD4BF 0%, transparent 50%),
-          radial-gradient(circle at 100% 100%, #0D9488 0%, transparent 50%),
-          radial-gradient(circle at 0% 0%, #38BDF8 0%, #141316 100%)
-        `
-      }}
-    />
-    <div className="relative z-10 rounded-[20px] bg-black/80 backdrop-blur-md h-full">
-      {children}
-    </div>
-  </div>
-)
+// Add interfaces for settings
+interface Settings {
+  general: {
+    startupEnabled: boolean
+    rememberPosition: boolean
+    updateChannel: 'stable' | 'beta'
+  }
+  theme: {
+    appearance: 'system' | 'light' | 'dark'
+    accentColor: string
+    animations: boolean
+    blurEffects: boolean
+  }
+  ai: {
+    model: string
+    apiKey: string
+    codeCompletion: boolean
+    imageGeneration: boolean
+    voiceCommands: boolean
+  }
+  privacy: {
+    dataCollection: boolean
+    authMethod: 'system' | 'password' | 'biometric'
+  }
+}
 
-// Settings panel component for the menu grid
+// Add settings state management
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
-  const [activeSection, setActiveSection] = useState<string>('general')
+  const [activeSection, setActiveSection] = useState<'general' | 'theme' | 'ai' | 'privacy' | 'shortcuts'>('general');
+  const [settings, setSettings] = useState<Settings>({
+    general: {
+      startupEnabled: true,
+      rememberPosition: false,
+      updateChannel: 'stable'
+    },
+    theme: {
+      appearance: 'system',
+      accentColor: 'blue',
+      animations: true,
+      blurEffects: true
+    },
+    ai: {
+      model: 'gpt4',
+      apiKey: '',
+      codeCompletion: true,
+      imageGeneration: false,
+      voiceCommands: false
+    },
+    privacy: {
+      dataCollection: false,
+      authMethod: 'system'
+    }
+  });
 
+  // Load settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      const savedSettings = await store.get('settings');
+      if (savedSettings) {
+        setSettings(savedSettings as Settings);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  // Save settings on change
+  const updateSettings = async (
+    section: keyof Settings,
+    key: string,
+    value: any
+  ) => {
+    const newSettings = {
+      ...settings,
+      [section]: {
+        ...settings[section],
+        [key]: value
+      }
+    };
+    setSettings(newSettings);
+    await store.set('settings', newSettings);
+  };
+
+  // Move GeneralSettings inside SettingsPanel
+  const GeneralSettings = () => (
+    <div className="space-y-2 overflow-y-auto
+                    scrollbar-thin scrollbar-track-white/5 
+                    scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20
+                    scrollbar-thumb-rounded">
+      <SettingItem
+        icon="🚀"
+        title="Startup"
+        description="Launch automatically"
+      >
+        <Toggle 
+          defaultChecked={settings.general.startupEnabled}
+          onChange={(checked) => updateSettings('general', 'startupEnabled', checked)}
+        />
+      </SettingItem>
+
+      <SettingItem
+        icon="📍"
+        title="Position"
+        description="Remember window position"
+      >
+        <Toggle 
+          defaultChecked={settings.general.rememberPosition}
+          onChange={(checked) => updateSettings('general', 'rememberPosition', checked)}
+        />
+      </SettingItem>
+
+      <SettingItem
+        icon="🔄"
+        title="Updates"
+        description="Check automatically"
+      >
+        <Select
+          value={settings.general.updateChannel}
+          options={[
+            { value: 'stable', label: 'Stable' },
+            { value: 'beta', label: 'Beta' }
+          ]}
+          onChange={(value) => updateSettings('general', 'updateChannel', value)}
+        />
+      </SettingItem>
+    </div>
+  );
+
+  // Similar updates for other sections...
+  // Add handlers for theme, AI, and privacy settings
+  
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="absolute inset-0 z-50"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      className="absolute inset-0"
     >
-      <SettingsBackgroundGradient>
-        <div className="p-2 flex flex-col h-full">
-          {/* Header with gradient back arrow */}
-          <div className="flex items-center justify-between p-2 border-b border-white/10">
-            <div className="flex items-center gap-2">
-              <div className="text-sm">⚙️</div>
-              <span className="text-white/90 font-medium text-xs">Settings</span>
-            </div>
-            <button
-              onClick={onClose}
-              className="relative group p-1.5 rounded-full"
+      <div className="p-2 flex flex-col h-full">
+        {/* Header */}
+        <div className="flex items-center justify-between p-2 border-b border-white/10">
+          <div className="flex items-center gap-2">
+            <div className="text-sm">⚙️</div>
+            <span className="text-white/90 font-medium text-xs">Settings</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="relative group p-1.5 rounded-full"
+          >
+            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-green-600 via-emerald-500 to-teal-400 
+                           opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
+            <svg 
+              width="16" 
+              height="16" 
+              viewBox="0 0 24 24" 
+              fill="none"
             >
-              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-green-600 via-emerald-500 to-teal-400 
-                             opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
-              <svg 
-                width="16" 
-                height="16" 
-                viewBox="0 0 24 24" 
-                fill="none"
-              >
-                <path 
-                  d="M19 12H5M12 19l-7-7 7-7" 
-                  strokeWidth="2.5"
-                  strokeLinecap="round" 
-                  strokeLinejoin="round"
-                  stroke="url(#backArrowGradient)"
-                />
-                <defs>
-                  <linearGradient id="backArrowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#059669" />
-                    <stop offset="50%" stopColor="#10B981" />
-                    <stop offset="100%" stopColor="#34D399" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </button>
+              <path 
+                d="M19 12H5M12 19l-7-7 7-7" 
+                strokeWidth="2.5"
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                stroke="url(#backArrowGradient)"
+              />
+              <defs>
+                <linearGradient id="backArrowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#059669" />
+                  <stop offset="50%" stopColor="#10B981" />
+                  <stop offset="100%" stopColor="#34D399" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </button>
+        </div>
+
+        {/* Settings Navigation */}
+        <div className="flex h-[calc(100%-44px)]">
+          <div className="w-20 border-r border-white/10 p-1.5 space-y-0.5">
+            <NavButton
+              icon="⚡"
+              label="General"
+              isActive={activeSection === 'general'}
+              onClick={() => setActiveSection('general')}
+            />
+            <NavButton
+              icon="🎨"
+              label="Theme"
+              isActive={activeSection === 'theme'}
+              onClick={() => setActiveSection('theme')}
+            />
+            <NavButton
+              icon="🤖"
+              label="AI"
+              isActive={activeSection === 'ai'}
+              onClick={() => setActiveSection('ai')}
+            />
+            <NavButton
+              icon="🔒"
+              label="Privacy"
+              isActive={activeSection === 'privacy'}
+              onClick={() => setActiveSection('privacy')}
+            />
+            <NavButton
+              icon="⌨️"
+              label="Shortcuts"
+              isActive={activeSection === 'shortcuts'}
+              onClick={() => setActiveSection('shortcuts')}
+            />
           </div>
 
-          {/* Settings Navigation */}
-          <div className="flex h-[calc(100%-44px)]">
-            <div className="w-20 border-r border-white/10 p-1.5 space-y-0.5">
-              <NavButton
-                icon="⚡"
-                label="General"
-                isActive={activeSection === 'general'}
-                onClick={() => setActiveSection('general')}
-              />
-              <NavButton
-                icon="🎨"
-                label="Theme"
-                isActive={activeSection === 'theme'}
-                onClick={() => setActiveSection('theme')}
-              />
-              <NavButton
-                icon="🤖"
-                label="AI"
-                isActive={activeSection === 'ai'}
-                onClick={() => setActiveSection('ai')}
-              />
-              <NavButton
-                icon="🔒"
-                label="Privacy"
-                isActive={activeSection === 'privacy'}
-                onClick={() => setActiveSection('privacy')}
-              />
-              <NavButton
-                icon="⌨️"
-                label="Shortcuts"
-                isActive={activeSection === 'shortcuts'}
-                onClick={() => setActiveSection('shortcuts')}
-              />
-            </div>
-
-            {/* Settings Content */}
-            <div className="flex-1 overflow-y-auto px-2 py-1
-                          scrollbar-thin scrollbar-track-white/5 
-                          scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20
-                          scrollbar-thumb-rounded">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeSection}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-2"
-                >
-                  {activeSection === 'general' && <GeneralSettings />}
-                  {activeSection === 'theme' && <ThemeSettings />}
-                  {activeSection === 'ai' && <AISettings />}
-                  {activeSection === 'privacy' && <PrivacySettings />}
-                  {activeSection === 'shortcuts' && <ShortcutSettings />}
-                </motion.div>
-              </AnimatePresence>
-            </div>
+          {/* Settings Content */}
+          <div className="flex-1 overflow-y-auto px-2 py-1
+                        scrollbar-thin scrollbar-track-white/5 
+                        scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20
+                        scrollbar-thumb-rounded">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeSection}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-2"
+              >
+                {activeSection === 'general' && <GeneralSettings />}
+                {activeSection === 'theme' && <ThemeSettings />}
+                {activeSection === 'ai' && <AISettings />}
+                {activeSection === 'privacy' && <PrivacySettings />}
+                {activeSection === 'shortcuts' && <ShortcutSettings />}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
-      </SettingsBackgroundGradient>
+      </div>
     </motion.div>
   )
 }
@@ -260,43 +362,6 @@ const NavButton: React.FC<{
 )
 
 // Settings Section Components
-const GeneralSettings = () => (
-  <div className="space-y-2 overflow-y-auto
-                  scrollbar-thin scrollbar-track-white/5 
-                  scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20
-                  scrollbar-thumb-rounded">
-    <SettingItem
-      icon="🚀"
-      title="Startup"
-      description="Launch automatically"
-    >
-      <Toggle defaultChecked />
-    </SettingItem>
-
-    <SettingItem
-      icon="📍"
-      title="Position"
-      description="Remember window position"
-    >
-      <Toggle />
-    </SettingItem>
-
-    <SettingItem
-      icon="🔄"
-      title="Updates"
-      description="Check automatically"
-    >
-      <Select
-        value="stable"
-        options={[
-          { value: 'stable', label: 'Stable' },
-          { value: 'beta', label: 'Beta' }
-        ]}
-      />
-    </SettingItem>
-  </div>
-)
-
 const ThemeSettings = () => (
   <div className="space-y-2 overflow-y-auto
                   scrollbar-thin scrollbar-track-white/5 

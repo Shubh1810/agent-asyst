@@ -72,7 +72,8 @@ export function AIChat({ onClose, isTheaterMode = false, onTheaterModeChange }: 
       exit={{ scale: 0.8, opacity: 0 }}
       className="w-full h-full bg-black/45 backdrop-blur-xl
                  rounded-3xl border border-yellow-100/90 overflow-hidden
-                 flex flex-col absolute inset-0"
+                 flex flex-col absolute inset-0
+                 shadow-[0_0_15px_rgba(0,0,0,0.1)]"
     >
       {/* Chat Header */}
       <div className="flex items-center justify-between p-3 border-b border-white/10">
