@@ -10,14 +10,17 @@ export const CardSpotlight = ({
   radius = 350,
   color = "#262626",
   className,
+  variant = "default",
   ...props
 }: {
   radius?: number;
   color?: string;
   children: React.ReactNode;
+  variant?: "default" | "automation";
 } & React.HTMLAttributes<HTMLDivElement>) => {
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
+
   function handleMouseMove({
     currentTarget,
     clientX,
@@ -32,6 +35,20 @@ export const CardSpotlight = ({
   const [isHovering, setIsHovering] = useState(false);
   const handleMouseEnter = () => setIsHovering(true);
   const handleMouseLeave = () => setIsHovering(false);
+
+  const getColors = () => {
+    if (variant === "automation") {
+      return [
+        [225, 29, 72], // rose-600
+        [190, 18, 60], // rose-700
+      ];
+    }
+    return [
+      [59, 130, 246],  // blue-500
+      [139, 92, 246],  // purple-500
+    ];
+  };
+
   return (
     <div
       className={cn(
@@ -47,7 +64,7 @@ export const CardSpotlight = ({
       <motion.div
         className="pointer-events-none absolute z-0 -inset-px rounded-[inherit] opacity-0 transition duration-300 group-hover/spotlight:opacity-100"
         style={{
-          backgroundColor: color,
+          backgroundColor: variant === "automation" ? "rgba(159, 18, 57, 0.1)" : color,
           transform: 'none',
           maskImage: useMotionTemplate`
             radial-gradient(
@@ -62,10 +79,7 @@ export const CardSpotlight = ({
           <CanvasRevealEffect
             animationSpeed={5}
             containerClassName="bg-transparent absolute inset-0 pointer-events-none transform-none"
-            colors={[
-              [59, 130, 246],
-              [139, 92, 246],
-            ]}
+            colors={getColors()}
             dotSize={3}
           />
         )}

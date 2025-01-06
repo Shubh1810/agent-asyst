@@ -8,16 +8,21 @@ repository = ""
 edition = "2021"
 
 [build-dependencies]
-tauri-build = { version = "2.0.0-beta", features = [] }
+tauri-build = { version = "2.0.0-beta.4", features = [] }
 
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "2.0.0-beta", features = [
     "macos-private-api",
-    "tray-icon"
+    "tray-icon",
 ] }
 cocoa = "0.25.0"
+tauri-plugin-global-shortcut = "2.0.0-beta"
+objc = { version = "0.2.7", features = ["exception"] }
+core-graphics = "0.24.0"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
+
+

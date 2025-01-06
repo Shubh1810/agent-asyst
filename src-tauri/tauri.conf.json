@@ -32,7 +32,9 @@
             "core:window:allow-set-decorations",
             "core:window:allow-set-always-on-top",
             "core:window:allow-set-focus",
-            "core:window:allow-set-skip-taskbar"
+            "core:window:allow-set-skip-taskbar",
+            "core:window:allow-set-fullscreen",
+            "core:window:allow-set-visible-on-all-workspaces"
           ],
           "windows": ["main"]
         },
@@ -47,8 +49,8 @@
       {
         "label": "main",
         "title": "Leo AI",
-        "width": 64,
-        "height": 64,
+        "width": 70,
+        "height": 70,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
@@ -62,7 +64,10 @@
         "y": 50,
         "center": false,
         "focus": false,
-        "theme": "Dark"
+        "theme": "Dark",
+        "acceptFirstMouse": true,
+        "visibleOnAllWorkspaces": true,
+        "fullscreen": false
       }
     ]
   },

@@ -11,13 +11,6 @@ use tauri::{
     WebviewWindow,
 };
 
-#[cfg(target_os = "macos")]
-use cocoa::appkit::{NSWindow, NSWindowCollectionBehavior, NSScreen};
-#[cfg(target_os = "macos")]
-use cocoa::base::nil;
-#[cfg(target_os = "macos")]
-use cocoa::foundation::{NSPoint, NSInteger};
-
 use std::process::Command;
 
 /// Get the scale factor for the monitor
@@ -147,47 +140,28 @@ fn main() {
             get_webview_window_position
         ])
         .setup(|app| {
-            let window = app.get_webview_window("main").unwrap();
+            let window = app.get_webview_window("main")
+                .ok_or_else(|| tauri::Error::WindowNotFound)?;
             
-            // Basic window setup
-            window.set_decorations(false)?;
-            window.set_always_on_top(true)?;
-            window.set_skip_taskbar(true)?;
-            
-            // Additional settings for staying on top of fullscreen apps
             #[cfg(target_os = "macos")]
             {
-                use cocoa::base::id;
-                let ns_window = window.ns_window().unwrap() as id;
-                unsafe {
-                    // Set window to appear above full screen windows
-                    ns_window.setCollectionBehavior_(
-                        NSWindowCollectionBehavior::NSWindowCollectionBehaviorCanJoinAllSpaces |
-                        NSWindowCollectionBehavior::NSWindowCollectionBehaviorStationary |
-                        NSWindowCollectionBehavior::NSWindowCollectionBehaviorIgnoresCycle |
-                        NSWindowCollectionBehavior::NSWindowCollectionBehaviorTransient
-                    );
-                    
-                    // Set window level (above regular windows)
-                    ns_window.setLevel_(3 as NSInteger);
-                    
-                    // Enable mouse events
-                    ns_window.setIgnoresMouseEvents_(false);
-                    
-                    // Ensure window is visible
-                    ns_window.makeKeyAndOrderFront_(nil);
-                    
-                    // Get current frame
-                    let frame = NSWindow::frame(ns_window);
-                    
-                    // Only set initial position if window is at origin
-                    if frame.origin.x == 0.0 && frame.origin.y == 0.0 {
-                        let screen = NSScreen::mainScreen(nil);
-                        let screen_frame = NSScreen::frame(screen);
-                        let initial_point = NSPoint::new(20.0, screen_frame.size.height - 120.0);
-                        ns_window.setFrameOrigin_(initial_point);
+                use tauri::WindowEvent;
+                
+                // Set window properties
+                window.set_always_on_top(true)?;
+                window.set_decorations(false)?;
+                window.set_skip_taskbar(true)?;
+                window.set_resizable(false)?;
+                
+                // Set up window event handler
+                let window_handle = window.clone();
+                window.on_window_event(move |event| {
+                    if let WindowEvent::Focused(focused) = event {
+                        if *focused {
+                            let _ = window_handle.set_always_on_top(true);
+                        }
                     }
-                }
+                });
             }
             
             Ok(())

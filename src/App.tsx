@@ -10,17 +10,79 @@ import { cn } from './lib/utilts'
 import { SettingsPanel } from './Settings'
 import './fonts.css'
 import cursorLogo from './assets/cursor-logo.png'
+import lightning from './assets/lightning.png'
 import { AutomationView } from './components/AutomationView'
 
 // Base sizes in logical pixels (will be scaled by Tauri)
 const BASE_SIZES = {
-  COLLAPSED: { width: 48, height: 48 },
+  COLLAPSED: { width: 70, height: 70 },
   EXPANDED: { width: 280, height: 340 },
   CHAT: { width: 320, height: 480 },
   THEATER: { width: 480, height: 640 }
 } as const
 
 type WindowPreset = keyof typeof BASE_SIZES
+
+// Simple resize helper that maintains window visibility
+const resizeWindow = async (preset: WindowPreset) => {
+  await invoke('set_window_size', BASE_SIZES[preset])
+}
+
+// Add this new component for the draggable handle
+const DraggableHandle = () => (
+  <div 
+    className="draggable-handle"
+    onMouseDown={async (e) => {
+      if (e.button === 0) {
+        e.preventDefault()
+        await invoke('start_drag')
+      }
+    }}
+  >
+    <motion.span 
+      className="leo-text"
+      whileHover={{ 
+        scale: 1.1,
+        textShadow: [
+          "0 0 4px rgba(255,255,255,0.4)",
+          "0 0 8px rgba(255,255,255,0.4)",
+          "0 0 12px rgba(255,255,255,0.4)",
+          "0 0 4px rgba(255,255,255,0.4)"
+        ]
+      }}
+      animate={{
+        backgroundPosition: ["0%", "100%", "0%"],
+      }}
+      transition={{
+        backgroundPosition: {
+          duration: 3,
+          repeat: Infinity,
+          ease: "linear"
+        },
+        scale: {
+          type: "spring",
+          stiffness: 500,
+          damping: 15
+        }
+      }}
+      style={{
+        backgroundSize: "200% 100%",
+      }}
+    >
+      LEO
+    </motion.span>
+  </div>
+)
+
+type MenuItem = {
+  label: React.ReactNode;
+  icon: React.ReactNode;
+  onClick: () => void;
+  iconType: string;
+  description: string;
+  className?: string;
+  keywords: string[];
+};
 
 function App() {
   // Calculate window sizes (Tauri handles DPI scaling)
@@ -43,25 +105,11 @@ function App() {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const transitioningRef = useRef(false)
   const isDraggingRef = useRef(false)
-  const dragOffsetRef = useRef({ x: 0, y: 0 })
-  const capturedElementRef = useRef<HTMLDivElement | null>(null)
-  const requestFrameRef = useRef<number | null>(null)
-  const pendingPositionRef = useRef<{ x: number; y: number } | null>(null)
   const dragStartTimeRef = useRef<number>(0)
 
   // Helper function for window resizing with state management
-  const resizeWindow = async (preset: WindowPreset, forceReflow: boolean = false) => {
-    const size = BASE_SIZES[preset]
-    await invoke('set_window_size', size)
-    
-    if (forceReflow) {
-      // Force a window reflow by temporarily hiding and showing
-      await invoke('set_window_visible', { visible: false })
-      await new Promise(resolve => setTimeout(resolve, 16)) // Wait one frame
-      await invoke('set_window_visible', { visible: true })
-    }
-    
-    return size
+  const resizeWindow = async (preset: WindowPreset) => {
+    await invoke('set_window_size', BASE_SIZES[preset])
   }
 
   // Helper for consistent window state transitions
@@ -77,7 +125,7 @@ function App() {
 
     try {
       // 1. Resize window first
-      await resizeWindow(newState.size, newState.forceReflow)
+      await resizeWindow(newState.size)
       
       // 2. Update position if needed
       if (newState.position) {
@@ -117,63 +165,51 @@ function App() {
     }
   }, [isExpanded])
 
-  // Ensure window is visible on start
+  // Ensure window is visible and correctly sized on start
   useEffect(() => {
-    invoke('set_window_visible', { visible: true })
-      .catch(error => console.error('Failed to show window:', error))
-  }, [])
+    const initWindow = async () => {
+      try {
+        // Set initial window size
+        await invoke('set_window_size', BASE_SIZES.COLLAPSED);
+        await invoke('set_window_visible', { visible: true });
+      } catch (error) {
+        console.error('Failed to initialize window:', error);
+      }
+    };
+
+    initWindow();
+  }, []);
 
   // --- Expand & Collapse ---
   const handleExpand = async () => {
-    // Get current window position first
+    if (transitioningRef.current) return
+    transitioningRef.current = true
+
     try {
-      const [x, y] = await invoke<[number, number]>('get_webview_window_position')
-      const currentPos = { x, y }
-
-      // Calculate center-aligned position for expanded window
-      const newPosition = {
-        x: currentPos.x - (WINDOW_SIZES.EXPANDED.width - WINDOW_SIZES.COLLAPSED.width) / 2,
-        y: currentPos.y - (WINDOW_SIZES.EXPANDED.height - WINDOW_SIZES.COLLAPSED.height) / 2
-      }
-
-      // Update state and window
-      setWindowPos(newPosition)
-      await transitionWindowState({
-        size: 'EXPANDED',
-        position: newPosition
-      })
+      await resizeWindow('EXPANDED')
       setIsExpanded(true)
     } catch (error) {
       console.error('Failed to expand window:', error)
+    } finally {
+      transitioningRef.current = false
     }
   }
 
+  /**
+   * Collapses back to the 70×70 circle, ensuring it shares the same center
+   * as the current expanded window.
+   */
   const handleCollapse = async () => {
+    if (transitioningRef.current) return
+    transitioningRef.current = true
+
     try {
-      // Get current window position
-      const [x, y] = await invoke<[number, number]>('get_webview_window_position')
-      const currentPos = { x, y }
-
-      // Calculate center-aligned position for collapsed window
-      const newPosition = {
-        x: currentPos.x + (WINDOW_SIZES.EXPANDED.width - WINDOW_SIZES.COLLAPSED.width) / 2,
-        y: currentPos.y + (WINDOW_SIZES.EXPANDED.height - WINDOW_SIZES.COLLAPSED.height) / 2
-      }
-
-      // Update state and window
-      setWindowPos(newPosition)
-      await transitionWindowState({
-        size: 'COLLAPSED',
-        position: newPosition,
-        forceReflow: true
-      })
-
-      // Only after window is fully resized, update the UI state
-      requestAnimationFrame(() => {
-        setIsExpanded(false)
-      })
+      await resizeWindow('COLLAPSED')
+      setIsExpanded(false)
     } catch (error) {
       console.error('Failed to collapse window:', error)
+    } finally {
+      transitioningRef.current = false
     }
   }
 
@@ -192,30 +228,9 @@ function App() {
     }
   }
 
-  const handleSiriClick = async () => {
-    await handleCollapse()
-    await transitionWindowState({ size: 'CHAT' })
-    setIsChatOpen(true)
-  }
-
-  const handleCloseChat = async () => {
-    await transitionWindowState({
-      size: 'COLLAPSED',
-      forceReflow: true
-    })
-    setIsChatOpen(false)
-  }
-
   const handleBack = async () => {
     await handleCollapse()
     window.history.back()
-  }
-
-  const handleTheaterMode = async (enabled: boolean) => {
-    await transitionWindowState({
-      size: enabled ? 'THEATER' : 'CHAT'
-    })
-    setIsTheaterMode(enabled)
   }
 
   // --- Search functionality ---
@@ -251,7 +266,7 @@ function App() {
     { 
       label: <span>LeoAI <strong>BETA</strong></span>,
       icon: '◎', 
-      onClick: handleSiriClick, 
+      onClick: () => setIsChatOpen(true), 
       iconType: 'ai-chat',
       description: 'Smart conversational AI',
       className: 'relative overflow-hidden',
@@ -274,15 +289,15 @@ function App() {
       keywords: ['voice', 'speech', 'audio', 'microphone', 'dictation']
     },
     { 
-      label: <strong>Workflow</strong>, 
-      icon: '⚡', 
+      label: <strong>AI File Transform</strong>, 
+      icon: '🔮', 
       onClick: () => {}, 
       iconType: 'workflow',
       description: 'Create custom AI workflows',
       keywords: ['workflow', 'automation', 'process', 'custom']
     },
     { 
-      label: <strong>Memory</strong>, 
+      label: <strong>Omni-App Memory</strong>, 
       icon: '󰍉',
       onClick: () => {}, 
       iconType: 'memory',
@@ -298,15 +313,15 @@ function App() {
       keywords: ['data', 'analytics', 'insights', 'statistics']
     },
     { 
-      label: <strong>Create</strong>, 
-      icon: '✨', 
+      label: <strong>Instant Summarize</strong>, 
+      icon: <img src={lightning} alt="Lightning" className="w-5 h-5 -rotate-5" />,
       onClick: () => {}, 
       iconType: 'create',
       description: 'AI content generation',
       keywords: ['create', 'generate', 'content', 'creative']
     },
     { 
-      label: 'Automate', 
+      label: <strong>Automate</strong>, 
       icon: <img src={cursorLogo} alt="Cursor" className="w-5 h-5" />,
       onClick: handleAutomationClick, 
       iconType: 'automate',
@@ -314,7 +329,7 @@ function App() {
       keywords: ['automate', 'automation', 'task', 'bot']
     },
     { 
-      label: 'Settings', 
+      label: <strong>Settings</strong>, 
       icon: '⚙️', 
       onClick: handleSettingsClick, 
       iconType: 'settings',
@@ -331,44 +346,30 @@ function App() {
     // Split query into words for better matching
     const queryWords = query.split(/\s+/)
     
-    // Check if all query words match any of the item's searchable content
     return queryWords.every(word => {
       const matchesKeyword = item.keywords.some(keyword => 
         keyword.toLowerCase().includes(word) || 
         word.includes(keyword.toLowerCase())
       )
       const matchesDescription = item.description.toLowerCase().includes(word)
-      const matchesLabel = typeof item.label === 'string' && 
-        item.label.toLowerCase().includes(word)
-      
-      return matchesKeyword || matchesDescription || matchesLabel
+      return matchesKeyword || matchesDescription
     })
   })
 
   // Sort filtered items by relevance
   const sortedFilteredItems = filteredMenuItems.sort((a, b) => {
     if (!searchQuery) return 0
-    
-    // Calculate relevance scores
-    const getScore = (item: typeof menuItems[0]) => {
+    const getScore = (item: MenuItem) => {
       const query = searchQuery.toLowerCase().trim()
       let score = 0
-      
       // Exact matches in keywords
       if (item.keywords.some(k => k.toLowerCase() === query)) score += 10
-      
       // Partial matches in keywords
       if (item.keywords.some(k => k.toLowerCase().includes(query))) score += 5
-      
       // Matches in description
       if (item.description.toLowerCase().includes(query)) score += 3
-      
-      // Matches in label
-      if (typeof item.label === 'string' && item.label.toLowerCase().includes(query)) score += 4
-      
       return score
     }
-    
     return getScore(b) - getScore(a)
   })
 
@@ -389,14 +390,12 @@ function App() {
   useEffect(() => {
     const loadPosition = async () => {
       try {
-        // Try to get position from localStorage first
         const savedPos = localStorage.getItem('windowPosition')
         if (savedPos) {
           const pos = JSON.parse(savedPos)
           setWindowPos(pos)
           await invoke('move_window', pos)
         } else {
-          // If no saved position, get current window position
           const [x, y] = await invoke<[number, number]>('get_window_position')
           setWindowPos({ x, y })
         }
@@ -427,17 +426,11 @@ function App() {
   return (
     <div className="app-container">
       <motion.div
-        className="w-full h-full bg-transparent"
+        className="w-[64px] h-[64px] flex items-center justify-center bg-transparent"
         style={{ background: 'transparent', touchAction: 'none' }}
       >
         <AnimatePresence mode="wait">
-          {isChatOpen ? (
-            <AIChat 
-              onClose={handleCloseChat} 
-              isTheaterMode={isTheaterMode}
-              onTheaterModeChange={handleTheaterMode}
-            />
-          ) : isExpanded ? (
+          {isExpanded ? (
             <motion.div
               ref={expandedMenuRef}
               key="expanded"
@@ -451,25 +444,24 @@ function App() {
                 className="p-3 flex flex-col h-full"
                 containerClassName="rounded-[20px] p-[3px]"
                 style={{
-                  width: WINDOW_SIZES.EXPANDED.width - 6,
-                  height: WINDOW_SIZES.EXPANDED.height - 6
+                  width: isTheaterMode ? WINDOW_SIZES.THEATER.width - 6 : WINDOW_SIZES.EXPANDED.width - 6,
+                  height: isTheaterMode ? WINDOW_SIZES.THEATER.height - 6 : WINDOW_SIZES.EXPANDED.height - 6,
+                  transition: 'width 0.3s ease-in-out, height 0.3s ease-in-out'
                 }}
-                preset={isAutomationOpen ? 'automation' : isSettingsOpen ? 'settings' : 'default'}
+                preset={
+                  isAutomationOpen ? 'automation' : 
+                  isSettingsOpen ? 'settings' : 
+                  isChatOpen ? 'chat' : 
+                  'default'
+                }
               >
-                {!isAutomationOpen && !isSettingsOpen && (
+                {!isAutomationOpen && !isSettingsOpen && !isChatOpen && (
                   <>
                     {/* Top bar with search and back button */}
-                    <div 
-                      onMouseDown={handleStartDrag}
-                      className="flex items-center justify-between mb-2 shrink-0 gap-2 cursor-move"
-                    >
+                    <div className="flex items-center justify-between mb-2 shrink-0 gap-2">
                       <div className="flex-1 relative">
                         <div className="search-container relative flex items-center">
-                          <span className="mr-dafoe-regular text-white text-lg absolute left-2.5 z-20
-                                         top-1/2 transform -translate-y-1/2 pointer-events-none
-                                         mix-blend-plus-lighter">
-                            LEO
-                          </span>
+                          <DraggableHandle />
                           <input
                             ref={searchInputRef}
                             type="text"
@@ -578,6 +570,30 @@ function App() {
                 <AnimatePresence>
                   {isAutomationOpen && (
                     <AutomationView onClose={handleCloseAutomation} />
+                  )}
+                </AnimatePresence>
+
+                {/* AI Chat Panel */}
+                <AnimatePresence>
+                  {isChatOpen && (
+                    <AIChat 
+                      onBack={() => {
+                        setIsChatOpen(false);
+                        setIsExpanded(true);
+                      }}
+                      onClose={() => {
+                        setIsChatOpen(false);
+                        setIsTheaterMode(false);
+                        handleCollapse();
+                      }}
+                      isTheaterMode={isTheaterMode}
+                      onTheaterModeChange={async (enabled) => {
+                        setIsTheaterMode(enabled);
+                        await transitionWindowState({
+                          size: enabled ? 'THEATER' : 'EXPANDED'
+                        });
+                      }}
+                    />
                   )}
                 </AnimatePresence>
               </BackgroundGradient>
