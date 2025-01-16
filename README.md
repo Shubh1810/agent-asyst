@@ -1,4 +1,4 @@
-# Assistive Touch App
+# AI Assistive Touch App
 
 "The" floating assistive touch app for macOS.
 
