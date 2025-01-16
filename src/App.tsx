@@ -1,6 +1,7 @@
 // src/App.tsx
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { listen, UnlistenFn, Event } from '@tauri-apps/api/event'
 import { motion, AnimatePresence } from 'framer-motion'
 import { BackgroundGradient } from './ui/background-gradient'
 import './App.css'
@@ -22,11 +23,6 @@ const BASE_SIZES = {
 } as const
 
 type WindowPreset = keyof typeof BASE_SIZES
-
-// Simple resize helper that maintains window visibility
-const resizeWindow = async (preset: WindowPreset) => {
-  await invoke('set_window_size', BASE_SIZES[preset])
-}
 
 // Add this new component for the draggable handle
 const DraggableHandle = () => (
@@ -84,6 +80,60 @@ type MenuItem = {
   keywords: string[];
 };
 
+// Add these types
+interface AppInfo {
+  name: string;
+  path: string;
+  pid: number;
+  icon: string | null;
+}
+
+interface WindowInfo {
+  app: string;
+  name: string;
+  id: number;
+  icon?: string;
+}
+
+// Add event type
+interface WindowState {
+  timestamp: number;
+  active_windows: WindowInfo[];
+  active_app: ActiveAppState;
+}
+
+// More aggressive scrollbar removal
+const noScrollbarStyles = `
+  * {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+  }
+  *::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  .overflow-y-auto, .overflow-x-auto, .overflow-auto {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+  }
+  .overflow-y-auto::-webkit-scrollbar, 
+  .overflow-x-auto::-webkit-scrollbar, 
+  .overflow-auto::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+`;
+
+// Separate type for active app with strict typing
+interface ActiveAppState {
+  name: string;
+  path: string;
+  pid: number;
+  icon: string | null;
+}
+
 function App() {
   // Calculate window sizes (Tauri handles DPI scaling)
   const WINDOW_SIZES = BASE_SIZES
@@ -99,6 +149,8 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isAutomationOpen, setIsAutomationOpen] = useState(false)
+  const [activeWindows, setActiveWindows] = useState<WindowInfo[]>([])
+  const [activeApp, setActiveApp] = useState<AppInfo | null>(null)
 
   // --- Refs ---
   const expandedMenuRef = useRef<HTMLDivElement>(null)
@@ -132,6 +184,11 @@ function App() {
         await invoke('move_window', newState.position)
         setWindowPos(newState.position)
       }
+
+      // 3. Save window state after any change
+      await invoke('plugin:window-state|save_state')
+    } catch (error) {
+      console.error('Failed to transition window state:', error)
     } finally {
       transitioningRef.current = false
     }
@@ -149,29 +206,27 @@ function App() {
     }
   }
 
-  const handleWindowBlur = () => {
-    if (isExpanded && !transitioningRef.current) {
-      handleCollapse()
-    }
-  }
-
   useEffect(() => {
     window.addEventListener('mousedown', handleClickOutside)
-    window.addEventListener('blur', handleWindowBlur)
 
     return () => {
       window.removeEventListener('mousedown', handleClickOutside)
-      window.removeEventListener('blur', handleWindowBlur)
     }
   }, [isExpanded])
 
-  // Ensure window is visible and correctly sized on start
+  // Load saved position on mount
   useEffect(() => {
     const initWindow = async () => {
       try {
-        // Set initial window size
-        await invoke('set_window_size', BASE_SIZES.COLLAPSED);
+        // The plugin will automatically restore the previous state
+        await invoke('plugin:window-state|restore_state');
+        
+        // Make window visible after state is restored
         await invoke('set_window_visible', { visible: true });
+        
+        // Get current position after restore
+        const [x, y] = await invoke<[number, number]>('get_webview_window_position');
+        setWindowPos({ x, y });
       } catch (error) {
         console.error('Failed to initialize window:', error);
       }
@@ -182,35 +237,13 @@ function App() {
 
   // --- Expand & Collapse ---
   const handleExpand = async () => {
-    if (transitioningRef.current) return
-    transitioningRef.current = true
-
-    try {
-      await resizeWindow('EXPANDED')
-      setIsExpanded(true)
-    } catch (error) {
-      console.error('Failed to expand window:', error)
-    } finally {
-      transitioningRef.current = false
-    }
+    await transitionWindowState({ size: 'EXPANDED' })
+    setIsExpanded(true)
   }
 
-  /**
-   * Collapses back to the 70×70 circle, ensuring it shares the same center
-   * as the current expanded window.
-   */
   const handleCollapse = async () => {
-    if (transitioningRef.current) return
-    transitioningRef.current = true
-
-    try {
-      await resizeWindow('COLLAPSED')
-      setIsExpanded(false)
-    } catch (error) {
-      console.error('Failed to collapse window:', error)
-    } finally {
-      transitioningRef.current = false
-    }
+    await transitionWindowState({ size: 'COLLAPSED' })
+    setIsExpanded(false)
   }
 
   // --- Menu Button Clicks ---
@@ -289,30 +322,6 @@ function App() {
       keywords: ['voice', 'speech', 'audio', 'microphone', 'dictation']
     },
     { 
-      label: <strong>AI File Transform</strong>, 
-      icon: '🔮', 
-      onClick: () => {}, 
-      iconType: 'workflow',
-      description: 'Create custom AI workflows',
-      keywords: ['workflow', 'automation', 'process', 'custom']
-    },
-    { 
-      label: <strong>Omni-App Memory</strong>, 
-      icon: '󰍉',
-      onClick: () => {}, 
-      iconType: 'memory',
-      description: 'Context & learning',
-      keywords: ['memory', 'context', 'learning', 'history']
-    },
-    { 
-      label: <strong>Data</strong>, 
-      icon: '', 
-      onClick: () => {}, 
-      iconType: 'data',
-      description: 'Data insights',
-      keywords: ['data', 'analytics', 'insights', 'statistics']
-    },
-    { 
       label: <strong>Instant Summarize</strong>, 
       icon: <img src={lightning} alt="Lightning" className="w-5 h-5 -rotate-5" />,
       onClick: () => {}, 
@@ -386,41 +395,108 @@ function App() {
     }
   }
 
-  // Load saved position on mount
-  useEffect(() => {
-    const loadPosition = async () => {
-      try {
-        const savedPos = localStorage.getItem('windowPosition')
-        if (savedPos) {
-          const pos = JSON.parse(savedPos)
-          setWindowPos(pos)
-          await invoke('move_window', pos)
-        } else {
-          const [x, y] = await invoke<[number, number]>('get_window_position')
-          setWindowPos({ x, y })
-        }
-      } catch (error) {
-        console.error('Failed to load window position:', error)
-      }
-    }
-    loadPosition()
-  }, [])
-
-  // Save position when it changes
-  useEffect(() => {
-    localStorage.setItem('windowPosition', JSON.stringify(windowPos))
-  }, [windowPos])
-
-  // Update handleDragEnd to save the final position
+  // Update position state and save window state when dragging ends
   const handleDragEnd = async () => {
     isDraggingRef.current = false
     try {
-      const [x, y] = await invoke<[number, number]>('get_window_position')
+      // Get the new position
+      const [x, y] = await invoke<[number, number]>('get_webview_window_position')
       setWindowPos({ x, y })
+      
+      // Save the window state
+      await invoke('plugin:window-state|save_state')
     } catch (error) {
-      console.error('Failed to update window position:', error)
+      console.error('Failed to save window state:', error)
     }
   }
+
+  // Modify the event listener for better type safety and immediate updates
+  useEffect(() => {
+    let isSubscribed = true;
+    
+    async function setupListener() {
+      try {
+        await listen('window_state_update', (event: any) => {
+          if (!isSubscribed) return;
+          
+          const { active_app } = event.payload;
+          console.log('Window state update:', active_app);
+          
+          if (active_app) {
+            setActiveApp({
+              name: active_app.name,
+              path: active_app.path,
+              pid: active_app.pid,
+              icon: active_app.icon
+            });
+          }
+        });
+      } catch (err) {
+        console.error('Error setting up window state listener:', err);
+      }
+    }
+
+    setupListener();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, []);
+
+  // New CurrentApp implementation as a memo-ized component for better performance
+  const CurrentApp = React.memo(() => {
+    console.log('Rendering CurrentApp with:', activeApp?.name);
+    
+    if (!activeApp) {
+      console.log('No active app to render');
+      return null;
+    }
+    
+    return (
+      <div className="mb-4">
+        <div className="px-2">
+          <div className="flex items-center gap-3 p-3 bg-black/20 rounded-lg hover:bg-black/30 transition-colors">
+            <div className="w-10 h-10 rounded-md overflow-hidden bg-black/20 flex items-center justify-center">
+              {activeApp.icon ? (
+                <img 
+                  src={activeApp.icon}
+                  alt={activeApp.name}
+                  className="w-full h-full object-contain"
+                  loading="eager"
+                  onLoad={() => console.log(`Icon loaded for ${activeApp.name}`)}
+                  onError={(e) => {
+                    console.error(`Failed to load icon for ${activeApp.name}`);
+                    const target = e.currentTarget;
+                    target.style.display = 'none';
+                    target.parentElement!.innerHTML = `
+                      <span class="text-lg text-white/30">
+                        ${activeApp.name.charAt(0).toUpperCase()}
+                      </span>
+                    `;
+                  }}
+                />
+              ) : (
+                <span className="text-lg text-white/30">
+                  {activeApp.name.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm text-white/90 font-medium truncate">
+                {activeApp.name}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs text-emerald-400/90">
+                  Active
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  });
 
   // --- Render ---
   return (
@@ -527,33 +603,76 @@ function App() {
 
                     {/* Scrollable content */}
                     <div className="overflow-y-auto flex-1 pr-1">
-                      <div className="menu-grid">
-                        {sortedFilteredItems.map(({ label, icon, onClick, iconType, className, description }, i) => (
-                          <CardSpotlight
-                            key={i}
-                            radius={100}
-                            color="rgba(123, 97, 255, 0.1)"
-                            className={cn(
-                              "menu-button group",
-                              "text-center",
-                              className
-                            )}
-                            onClick={onClick}
-                            data-icon={iconType}
-                          >
-                            <div className="icon-wrapper relative z-20">
-                              {icon}
-                            </div>
-                            <span className="text-xs relative z-20 block">{label}</span>
-                            {searchQuery && (
-                              <div className="absolute inset-x-0 bottom-0 p-1 bg-black/80 text-[10px] text-white/70
-                                            opacity-0 group-hover:opacity-100 transition-opacity duration-200
-                                            rounded-b-lg">
-                                {description}
+                      {/* Current App Section Moved to Top */}
+                      <CurrentApp />
+
+                      <div className="mt-4 pt-4 border-t border-white/10">
+                        <div className="menu-grid">
+                          {sortedFilteredItems.map(({ label, icon, onClick, iconType, className, description }, i) => (
+                            <CardSpotlight
+                              key={i}
+                              radius={100}
+                              color="rgba(123, 97, 255, 0.1)"
+                              className={cn(
+                                "menu-button group",
+                                "text-center",
+                                className
+                              )}
+                              onClick={onClick}
+                              data-icon={iconType}
+                            >
+                              <div className="icon-wrapper relative z-20">
+                                {icon}
                               </div>
-                            )}
-                          </CardSpotlight>
-                        ))}
+                              <span className="text-xs relative z-20 block">{label}</span>
+                              {searchQuery && (
+                                <div className="absolute inset-x-0 bottom-0 p-1 bg-black/80 text-[10px] text-white/70
+                                              opacity-0 group-hover:opacity-100 transition-opacity duration-200
+                                              rounded-b-lg">
+                                  {description}
+                                </div>
+                              )}
+                            </CardSpotlight>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Add App List Section */}
+                      <div className="mt-4 border-t border-white/10 pt-4">
+                        <div className="text-xs text-white/50 mb-2 px-2">Active Applications</div>
+                        <div className="app-list grid grid-cols-4 gap-2 px-2 overflow-hidden">
+                          {activeWindows
+                            .filter((window, index, self) => 
+                              // Filter unique apps
+                              index === self.findIndex(w => w.app === window.app)
+                            )
+                            .map((window, i) => (
+                              <div 
+                                key={i}
+                                className="app-item flex flex-col items-center justify-center p-2 
+                                         bg-black/20 rounded-lg border border-white/5 hover:border-white/10
+                                         transition-colors"
+                                title={window.app}
+                              >
+                                {window.icon ? (
+                                  <img 
+                                    src={window.icon} 
+                                    alt={window.app}
+                                    className="w-8 h-8 mb-1 rounded-md"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 mb-1 rounded-md bg-white/5 flex items-center justify-center">
+                                    <span className="text-xs text-white/30">
+                                      {window.app.charAt(0)}
+                                    </span>
+                                  </div>
+                                )}
+                                <span className="text-[10px] text-white/70 truncate w-full text-center">
+                                  {window.app}
+                                </span>
+                              </div>
+                            ))}
+                        </div>
                       </div>
                     </div>
                   </>
@@ -596,6 +715,9 @@ function App() {
                     />
                   )}
                 </AnimatePresence>
+
+                {/* Add global no-scrollbar styles */}
+                <style>{noScrollbarStyles}</style>
               </BackgroundGradient>
             </motion.div>
           ) : (
