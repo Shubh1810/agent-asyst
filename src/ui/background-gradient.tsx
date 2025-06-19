@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 type GradientPreset = 'default' | 'settings' | 'automation' | 'chat';
 
 const GRADIENT_PRESETS: Record<GradientPreset, string> = {
-  default: "bg-[radial-gradient(circle_farthest-side_at_0_100%,#2B4BF2,transparent_70%),radial-gradient(circle_farthest-side_at_100%_0,#A855F7,transparent_70%),radial-gradient(circle_farthest-side_at_100%_100%,#3B82F6,transparent_70%),radial-gradient(circle_farthest-side_at_0_0,#2563EB,#141316)]",
+  default: "bg-[linear-gradient(to_bottom,#000000_0%,#1a0b1a_40%,#2d1b3d_70%,#3d1a3d_85%,#000000_95%,#000000_100%)]",
   settings: "bg-[radial-gradient(circle_farthest-side_at_0_100%,#059669,transparent_70%),radial-gradient(circle_farthest-side_at_100%_0,#10B981,transparent_70%),radial-gradient(circle_farthest-side_at_100%_100%,#34D399,transparent_70%),radial-gradient(circle_farthest-side_at_0_0,#047857,#141316)]",
   automation: "bg-[radial-gradient(circle_farthest-side_at_0_100%,#9f1239,transparent_60%),radial-gradient(circle_farthest-side_at_100%_0,#be123c,transparent_70%),radial-gradient(circle_farthest-side_at_100%_100%,#4c0519,transparent_60%),radial-gradient(circle_farthest-side_at_0_0,#9f1239,#09090b)]",
   chat: "bg-[radial-gradient(circle_farthest-side_at_0_100%,#2563EB,transparent_70%),radial-gradient(circle_farthest-side_at_100%_0,#3B82F6,transparent_70%),radial-gradient(circle_farthest-side_at_100%_100%,#60A5FA,transparent_70%),radial-gradient(circle_farthest-side_at_0_0,#1D4ED8,#141316)]"

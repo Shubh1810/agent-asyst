@@ -1,8 +1,6 @@
 // src-tauri/src/main.rs
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-#![allow(deprecated)]
-#![allow(unexpected_cfgs)]
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow};
 
@@ -29,7 +27,6 @@ use parking_lot::RwLock;
 
 #[cfg(target_os = "macos")]
 #[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
 struct NSSize {
     width: f64,
     height: f64,
@@ -505,7 +502,6 @@ fn get_active_app_from_menubar() -> Option<String> {
     }
 }
 
-#[allow(dead_code)]
 fn handle_window_state_update(app_handle: &tauri::AppHandle, window_info: Value) {
     println!("\n=== Window State Update Processing ===");
     println!("Raw window_info: {}", window_info);
