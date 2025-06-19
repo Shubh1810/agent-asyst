@@ -1,9 +1,10 @@
 // src-tauri/src/main.rs
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![allow(deprecated)]
+#![allow(unexpected_cfgs)]
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow};
-
 
 #[cfg(target_os = "macos")]
 use cocoa::base::{id, nil, NO, YES};
@@ -22,56 +23,67 @@ use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader, Write};
 use std::thread;
 use serde_json::Value;
-use std::sync::Arc;
-use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
 use tauri::AppHandle;
+use parking_lot::RwLock;
 
 #[cfg(target_os = "macos")]
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 struct NSSize {
     width: f64,
     height: f64,
 }
 
-// Thread-local storage for Python stdin and observer
-thread_local! {
-    static PYTHON_STDIN: RefCell<Option<Arc<std::sync::Mutex<std::process::ChildStdin>>>> = RefCell::new(None);
-    
-    #[cfg(target_os = "macos")]
-    static OBSERVER: RefCell<Option<id>> = RefCell::new(None);
-    static APP_HANDLE: RefCell<Option<AppHandle>> = RefCell::new(None);
-}
+// Use a safer approach for observer management
+#[cfg(target_os = "macos")]
+static OBSERVER_COUNT: once_cell::sync::Lazy<Arc<Mutex<i32>>> = 
+    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(0)));
 
-/// Get the scale factor for the monitor
+// Thread-safe storage for Python stdin
+static PYTHON_STDIN: once_cell::sync::Lazy<Arc<Mutex<Option<std::process::ChildStdin>>>> = 
+    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(None)));
+
+static APP_HANDLE: once_cell::sync::Lazy<Arc<RwLock<Option<AppHandle>>>> = 
+    once_cell::sync::Lazy::new(|| Arc::new(RwLock::new(None)));
+
+/// Get the scale factor for the monitor with bounds checking
 fn get_scale_factor(window: &WebviewWindow) -> f64 {
     window
         .current_monitor()
         .unwrap_or(None)
         .map(|m| m.scale_factor())
         .unwrap_or(1.0)
+        .max(0.1) // Prevent division by zero or negative scales
+        .min(10.0) // Cap at reasonable maximum
 }
 
 /// Tauri command that repositions the "main" window using physical coordinates,
-/// allowing cross-monitor movement.
+/// allowing cross-monitor movement with bounds checking.
 #[tauri::command]
 fn move_window(app_handle: tauri::AppHandle, x: i32, y: i32) -> Result<(), String> {
     if let Some(window) = app_handle.get_webview_window("main") {
-        // Switch to physical position to support multiple displays
-        let physical_pos = PhysicalPosition::new(x, y); // Corrected to i32
-                                                        // Non-blocking set_position for snappier dragging
+        // Bounds checking to prevent invalid positions
+        let clamped_x = x.clamp(-5000, 10000);
+        let clamped_y = y.clamp(-5000, 10000);
+        
+        let physical_pos = PhysicalPosition::new(clamped_x, clamped_y);
         let _ = window.set_position(Position::Physical(physical_pos));
     }
     Ok(())
 }
 
-/// Tauri command that resizes the "main" window.
+/// Tauri command that resizes the "main" window with proper bounds checking.
 #[tauri::command]
 fn set_window_size(app_handle: tauri::AppHandle, width: u32, height: u32) -> Result<(), String> {
     if let Some(window) = app_handle.get_webview_window("main") {
+        // Enforce minimum sizes to prevent crashes
+        let safe_width = width.max(100).min(3000);
+        let safe_height = height.max(100).min(3000);
+        
         let scale_factor = get_scale_factor(&window);
-        // Convert the requested size to physical pixels for high DPI displays
-        let physical_width = (width as f64 * scale_factor).round() as u32;
-        let physical_height = (height as f64 * scale_factor).round() as u32;
+        let physical_width = (safe_width as f64 * scale_factor).round() as u32;
+        let physical_height = (safe_height as f64 * scale_factor).round() as u32;
 
         window
             .set_size(Size::Physical(PhysicalSize::new(
@@ -233,17 +245,16 @@ unsafe extern "C" fn space_change_callback(_this: id, _sel: Sel, _notification: 
     }
     
     // Notify Python detector through stdin
-    PYTHON_STDIN.with(|stdin| {
-        if let Some(stdin) = stdin.borrow().as_ref() {
-            if let Ok(mut stdin) = stdin.lock() {
-                if let Err(e) = stdin.write_all(b"SPACE_CHANGED\n") {
-                    eprintln!("Failed to notify Python: {}", e);
-                } else if let Err(e) = stdin.flush() {
-                    eprintln!("Failed to flush Python stdin: {}", e);
-                }
+    {
+        let mut stdin = PYTHON_STDIN.lock().unwrap();
+        if let Some(ref mut stdin) = *stdin {
+            if let Err(e) = stdin.write_all(b"SPACE_CHANGED\n") {
+                eprintln!("Failed to notify Python: {}", e);
+            } else if let Err(e) = stdin.flush() {
+                eprintln!("Failed to flush Python stdin: {}", e);
             }
         }
-    });
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -304,10 +315,11 @@ fn apply_macos_window_customizations(window: &WebviewWindow) -> Result<(), Strin
             return Err("Failed to create observer".into());
         }
         
-        // Store observer first
-        OBSERVER.with(|obs| {
-            *obs.borrow_mut() = Some(observer);
-        });
+        // Store observer
+        {
+            let mut obs = OBSERVER_COUNT.lock().unwrap();
+            *obs += 1;
+        }
 
         // Basic selector setup
         let selector = sel!(spaceDidChange:);
@@ -414,12 +426,12 @@ fn start_window_detector(app_handle: tauri::AppHandle) {
 
         // Get stdin handle for sending notifications
         let python_stdin = child.stdin.take().expect("Failed to get stdin");
-        let python_stdin = Arc::new(std::sync::Mutex::new(python_stdin));
         
-        // Store python_stdin in thread local storage
-        PYTHON_STDIN.with(|stdin| {
-            *stdin.borrow_mut() = Some(python_stdin.clone());
-        });
+        // Store python_stdin in thread-safe storage
+        {
+            let mut stdin = PYTHON_STDIN.lock().unwrap();
+            *stdin = Some(python_stdin);
+        }
 
         // Handle stderr in a separate thread
         if let Some(stderr) = child.stderr.take() {
@@ -493,6 +505,7 @@ fn get_active_app_from_menubar() -> Option<String> {
     }
 }
 
+#[allow(dead_code)]
 fn handle_window_state_update(app_handle: &tauri::AppHandle, window_info: Value) {
     println!("\n=== Window State Update Processing ===");
     println!("Raw window_info: {}", window_info);
@@ -568,7 +581,7 @@ fn get_app_icon(app_name: &str) -> Option<String> {
 }
 
 #[cfg(target_os = "macos")]
-unsafe extern "C" fn active_app_change_callback(_this: id, _sel: Sel, notification: id) {
+unsafe extern "C" fn active_app_change_callback(_this: id, _sel: Sel, _notification: id) {
     println!("Active app change detected from Rust");
     
     // Get the active app info
@@ -580,8 +593,9 @@ unsafe extern "C" fn active_app_change_callback(_this: id, _sel: Sel, notificati
         println!("Icon fetched: {}", if icon.is_some() { "Yes" } else { "No" });
         
         // Emit directly to frontend first
-        APP_HANDLE.with(|app_handle| {
-            if let Some(app_handle) = app_handle.borrow().as_ref() {
+        {
+            let app_handle = APP_HANDLE.read();
+            if let Some(app_handle) = app_handle.as_ref() {
                 let window_info = json!({
                     "active_app": {
                         "name": app_name,
@@ -599,23 +613,22 @@ unsafe extern "C" fn active_app_change_callback(_this: id, _sel: Sel, notificati
                     }
                 }
             }
-        });
+        }
         
         // Also notify Python for other functionality
-        PYTHON_STDIN.with(|stdin| {
-            if let Some(stdin) = stdin.borrow().as_ref() {
-                if let Ok(mut stdin) = stdin.lock() {
-                    let command = format!("APP_CHANGED:{}\n", app_name);
-                    if let Err(e) = stdin.write_all(command.as_bytes()) {
-                        eprintln!("Failed to notify Python: {}", e);
-                    } else if let Err(e) = stdin.flush() {
-                        eprintln!("Failed to flush Python stdin: {}", e);
-                    } else {
-                        println!("Notified Python about app change");
-                    }
+        {
+            let mut stdin = PYTHON_STDIN.lock().unwrap();
+            if let Some(ref mut stdin) = *stdin {
+                let command = format!("APP_CHANGED:{}\n", app_name);
+                if let Err(e) = stdin.write_all(command.as_bytes()) {
+                    eprintln!("Failed to notify Python: {}", e);
+                } else if let Err(e) = stdin.flush() {
+                    eprintln!("Failed to flush Python stdin: {}", e);
+                } else {
+                    println!("Notified Python about app change");
                 }
             }
-        });
+        }
     }
 }
 
@@ -629,9 +642,10 @@ fn setup_active_app_observer() -> Result<(), String> {
         let observer: id = msg_send![class!(NSObject), new];
         
         // Store observer
-        OBSERVER.with(|obs| {
-            *obs.borrow_mut() = Some(observer);
-        });
+        {
+            let mut obs = OBSERVER_COUNT.lock().unwrap();
+            *obs += 1;
+        }
         
         // Add method to observer
         let selector = sel!(activeAppDidChange:);
@@ -656,8 +670,21 @@ fn setup_active_app_observer() -> Result<(), String> {
     }
 }
 
+// Cleanup function for observers to prevent memory leaks
+#[cfg(target_os = "macos")]
+fn cleanup_observers() {
+    unsafe {
+        let obs_count = OBSERVER_COUNT.lock().unwrap();
+        for _ in 0..*obs_count {
+            let workspace: id = msg_send![class!(NSWorkspace), sharedWorkspace];
+            let notification_center: id = msg_send![workspace, notificationCenter];
+            let _: () = msg_send![notification_center, removeObserver: nil];
+        }
+    }
+}
+
 fn main() {
-    // Set custom panic hook
+    // Set custom panic hook with cleanup
     panic::set_hook(Box::new(|panic_info| {
         eprintln!("Panic occurred: {:?}", panic_info);
         if let Some(location) = panic_info.location() {
@@ -667,6 +694,9 @@ fn main() {
                 location.line()
             );
         }
+        
+        #[cfg(target_os = "macos")]
+        cleanup_observers();
     }));
 
     let result = tauri::Builder::default()
@@ -688,10 +718,11 @@ fn main() {
             
             let app_handle = app.handle();
             
-            // Store app handle in thread local
-            APP_HANDLE.with(|handle| {
-                *handle.borrow_mut() = Some(app_handle.clone());
-            });
+            // Store app handle safely
+            {
+                let mut handle = APP_HANDLE.write();
+                *handle = Some(app_handle.clone());
+            }
             
             // Setup active app observer
             #[cfg(target_os = "macos")]
@@ -718,10 +749,25 @@ fn main() {
             println!("Setup completed successfully");
             Ok(())
         })
+        .on_window_event(|_window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                #[cfg(target_os = "macos")]
+                cleanup_observers();
+                api.prevent_close();
+                _window.hide().unwrap();
+            }
+            _ => {}
+        })
         .run(tauri::generate_context!());
 
     if let Err(e) = result {
         eprintln!("Error running application: {}", e);
+        #[cfg(target_os = "macos")]
+        cleanup_observers();
         std::process::exit(1);
     }
+    
+    // Final cleanup
+    #[cfg(target_os = "macos")]
+    cleanup_observers();
 }
